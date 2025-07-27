@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { 
   Plane, 
   MapPin, 
@@ -280,6 +280,63 @@ function App() {
   const PlanningInterface = () => {
     const [step, setStep] = useState(1);
     const [chatMessage, setChatMessage] = useState('');
+    const [chatHistory, setChatHistory] = useState([
+      { role: 'assistant', content: "Hi! I'm your AI travel assistant. Tell me about your dream trip to Tokyo!" }
+    ]);
+    const [isLoading, setIsLoading] = useState(false);
+    const chatContainerRef = useRef(null);
+    
+    // Auto-scroll to bottom when new messages are added
+    useEffect(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    }, [chatHistory]);
+    
+    const sendMessage = async () => {
+      if (!chatMessage.trim() || isLoading) return;
+      
+      const userMessage = chatMessage;
+      setChatMessage('');
+      
+      // Add user message to chat history
+      setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
+      
+      setIsLoading(true);
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ message: userMessage }),
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to get response');
+        }
+        
+        const data = await response.json();
+        
+        // Add AI response to chat history
+        setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
+      } catch (error) {
+        console.error('Error sending message:', error);
+        setChatHistory(prev => [...prev, { 
+          role: 'assistant', 
+          content: 'Sorry, I encountered an error. Please try again.' 
+        }]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    const handleKeyPress = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
+    };
     
     return (
       <div className="min-h-screen bg-gray-50 py-8">
@@ -351,34 +408,37 @@ function App() {
                 <h2 className="text-xl font-semibold">AI Travel Assistant</h2>
               </div>
               
-              <div className="h-80 bg-gray-50 rounded-lg p-4 mb-4 overflow-y-auto">
+              <div ref={chatContainerRef} className="h-80 bg-gray-50 rounded-lg p-4 mb-4 overflow-y-auto">
                 <div className="space-y-4">
-                  <div className="flex items-start space-x-3">
-                    <div className="bg-blue-600 rounded-full p-2">
-                      <Bot className="h-4 w-4 text-white" />
+                  {chatHistory.map((message, index) => (
+                    <div key={index} className={`flex items-start space-x-3 ${message.role === 'user' ? 'justify-end' : ''}`}>
+                      {message.role === 'assistant' && (
+                        <div className="bg-blue-600 rounded-full p-2">
+                          <Bot className="h-4 w-4 text-white" />
+                        </div>
+                      )}
+                      <div className={`rounded-lg p-3 shadow-sm max-w-xs ${
+                        message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white'
+                      }`}>
+                        <p className="text-sm">{message.content}</p>
+                      </div>
+                      {message.role === 'user' && (
+                        <div className="bg-gray-300 rounded-full p-2">
+                          <User className="h-4 w-4 text-gray-600" />
+                        </div>
+                      )}
                     </div>
-                    <div className="bg-white rounded-lg p-3 shadow-sm max-w-xs">
-                      <p className="text-sm">Hi! I'm your AI travel assistant. Tell me about your dream trip to Tokyo!</p>
+                  ))}
+                  {isLoading && (
+                    <div className="flex items-start space-x-3">
+                      <div className="bg-blue-600 rounded-full p-2">
+                        <Bot className="h-4 w-4 text-white" />
+                      </div>
+                      <div className="bg-white rounded-lg p-3 shadow-sm">
+                        <p className="text-sm text-gray-500">Typing...</p>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-start space-x-3 justify-end">
-                    <div className="bg-blue-600 text-white rounded-lg p-3 shadow-sm max-w-xs">
-                      <p className="text-sm">I want to experience authentic Japanese culture and food</p>
-                    </div>
-                    <div className="bg-gray-300 rounded-full p-2">
-                      <User className="h-4 w-4 text-gray-600" />
-                    </div>
-                  </div>
-
-                  <div className="flex items-start space-x-3">
-                    <div className="bg-blue-600 rounded-full p-2">
-                      <Bot className="h-4 w-4 text-white" />
-                    </div>
-                    <div className="bg-white rounded-lg p-3 shadow-sm max-w-xs">
-                      <p className="text-sm">Perfect! I'll include traditional neighborhoods, local restaurants, and cultural experiences. Any specific interests?</p>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -387,10 +447,16 @@ function App() {
                   type="text"
                   value={chatMessage}
                   onChange={(e) => setChatMessage(e.target.value)}
+                  onKeyPress={handleKeyPress}
                   placeholder="Ask about your trip..."
                   className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isLoading}
                 />
-                <button className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg transition-colors">
+                <button 
+                  onClick={sendMessage}
+                  disabled={isLoading || !chatMessage.trim()}
+                  className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <Send className="h-5 w-5" />
                 </button>
               </div>

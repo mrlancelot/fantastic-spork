@@ -4,12 +4,24 @@ To run this API, use the FastAPI CLI
 $ fastapi dev src/api.py
 """
 
+import os
 import random
 
-from fastapi import FastAPI
+import httpx
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel
 
 # The app which manages all of the API routes
 app = FastAPI()
+
+
+# Pydantic models for request/response
+class ChatRequest(BaseModel):
+    message: str
+
+
+class ChatResponse(BaseModel):
+    response: str
 
 
 # The decorator declares the function as a FastAPI route on the given path.
@@ -42,3 +54,52 @@ def read_item(item_id: int, q: str | None = None) -> dict[str, int | str | None]
 def get_random_item() -> dict[str, int]:
     """Get an item with a random ID."""
     return {"item_id": random.randint(0, 1000)}
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat_with_gemini(request: ChatRequest) -> ChatResponse:
+    """Chat with Gemini AI using REST API."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    
+    url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+    
+    headers = {
+        "Content-Type": "application/json",
+        "X-goog-api-key": api_key
+    }
+    
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {
+                        "text": request.message
+                    }
+                ]
+            }
+        ]
+    }
+    
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            # Extract the text from the response
+            if "candidates" in data and len(data["candidates"]) > 0:
+                candidate = data["candidates"][0]
+                if "content" in candidate and "parts" in candidate["content"]:
+                    parts = candidate["content"]["parts"]
+                    if len(parts) > 0 and "text" in parts[0]:
+                        return ChatResponse(response=parts[0]["text"])
+            
+            raise HTTPException(status_code=500, detail="Invalid response format from Gemini")
+            
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=500, detail=f"Error connecting to Gemini API: {str(e)}")
+        except httpx.HTTPStatusError as e:
+            raise HTTPException(status_code=e.response.status_code, detail=f"Gemini API error: {e.response.text}")
