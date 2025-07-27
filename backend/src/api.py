@@ -6,10 +6,16 @@ $ fastapi dev src/api.py
 
 import os
 import random
+from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+
+# Load environment variables from .env file
+env_path = Path(__file__).parent.parent.parent / '.env'
+load_dotenv(env_path)
 
 # The app which manages all of the API routes
 app = FastAPI()
@@ -56,12 +62,27 @@ def get_random_item() -> dict[str, int]:
     return {"item_id": random.randint(0, 1000)}
 
 
+@app.get("/test-env")
+def test_environment() -> dict[str, str | int]:
+    """Test if environment variables are loaded."""
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {"status": "API key not found", "env_file_path": str(env_path)}
+    elif api_key == "your_gemini_api_key_here":
+        return {"status": "API key found but is placeholder", "env_file_path": str(env_path)}
+    else:
+        return {"status": "API key loaded", "key_length": len(api_key), "env_file_path": str(env_path)}
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat_with_gemini(request: ChatRequest) -> ChatResponse:
     """Chat with Gemini AI using REST API."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="GEMINI_API_KEY not configured")
+    
+    if api_key == "your_gemini_api_key_here":
+        raise HTTPException(status_code=500, detail="Please replace 'your_gemini_api_key_here' with your actual Gemini API key in the .env file")
     
     url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
     
@@ -84,7 +105,7 @@ async def chat_with_gemini(request: ChatRequest) -> ChatResponse:
     
     async with httpx.AsyncClient() as client:
         try:
-            response = await client.post(url, json=payload, headers=headers)
+            response = await client.post(url, json=payload, headers=headers, timeout=30.0)
             response.raise_for_status()
             
             data = response.json()
@@ -99,7 +120,12 @@ async def chat_with_gemini(request: ChatRequest) -> ChatResponse:
             
             raise HTTPException(status_code=500, detail="Invalid response format from Gemini")
             
+        except httpx.ConnectError as e:
+            raise HTTPException(status_code=500, detail=f"Failed to connect to Gemini API. Please check your internet connection.")
+        except httpx.TimeoutException as e:
+            raise HTTPException(status_code=500, detail=f"Request to Gemini API timed out. Please try again.")
         except httpx.RequestError as e:
             raise HTTPException(status_code=500, detail=f"Error connecting to Gemini API: {str(e)}")
         except httpx.HTTPStatusError as e:
-            raise HTTPException(status_code=e.response.status_code, detail=f"Gemini API error: {e.response.text}")
+            error_detail = f"Gemini API error (status {e.response.status_code}): {e.response.text}"
+            raise HTTPException(status_code=e.response.status_code, detail=error_detail)

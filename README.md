@@ -1,68 +1,136 @@
-# Starter Pack Series: Full-Stack Web Application
+# TravelAI - AI-Powered Travel Planning Platform
 
-A single-page React application backed by FastAPI, ready to deploy on Render or Vercel.
+A full-stack web application that uses AI to create personalized travel itineraries, built with React and FastAPI.
 
-[Create a new repository using this template](https://github.com/new?template_name=starter-pack-full-stack-web-app&template_owner=HackAtUCI)
-to get started.
+## Overview
 
-## Introduction
+TravelAI is an intelligent travel planning platform that helps users create personalized itineraries with the help of AI. The application features:
 
-Welcome to the starter-pack series on full-stack web applications! This
-repository serves as an introduction to how full-stack web applications work
-and how to leverage frameworks to make it easier to build one.
+- **AI-Powered Planning**: Chat with an AI assistant to get personalized travel recommendations
+- **Smart Itinerary Generation**: Automatically create detailed day-by-day travel plans
+- **Trip Management**: Organize and track all your trips in one place
+- **Destination Discovery**: Explore popular destinations with curated guides
+- **Real-time Booking**: Direct links to book flights, hotels, and activities
+- **User Preferences**: Save your travel style and budget preferences
 
-## What are Frontends and Backends?
+## Features
 
-A frontend is the software visible to a user such as what appears on a webpage,
-while a backend is the software running behind the scenes such as an endpoint
-providing the data that will eventually be shown on the webpage.
+### 🤖 AI Travel Assistant
+- Interactive chat interface for travel planning
+- Personalized recommendations based on your preferences
+- Smart itinerary suggestions with time optimization
 
-Frontends for webpages generally consist of HTML, CSS, and JavaScript that come
-together to provide the user interface (UI) along with other visual assets.
-While you can code directly in those languages, JavaScript libraries such as React
-allow you to do the same faster and more efficiently.
+### 📅 Trip Dashboard
+- View upcoming and past trips
+- Quick access to itineraries
+- Trip status tracking
 
-Backends are much more flexible since all you need is a web server listening for
-different types of [HTTP requests](https://developer.mozilla.org/en-US/docs/Web/HTTP/Methods)
-on various routes (e.g. /user/info), each of which can perform its own action
-such as modifying a database or triggering another action.
-There are many libraries, such as FastAPI (Python) and Express (JavaScript) that make
-it easy to build special servers known as APIs which interact with a frontend client.
+### 🗺️ Itinerary Builder
+- Day-by-day activity planning
+- Integrated booking links
+- Budget tracking
+- Export and share capabilities
 
-## What is a Full-Stack Web App?
+### 🌍 Destination Guide
+- Explore popular destinations
+- View top attractions with ratings
+- Get practical travel tips
+- Budget estimates and best travel times
 
-With the rising popularity of single-page applications (SPAs), simple webpages can be
-made by keeping the frontend and backend in separate layers. This allows constructing
-a full-stack web application with a frontend UI client and a backend API server.
+### 👤 User Profile
+- Save travel preferences
+- Manage notification settings
+- Track favorite destinations
+- Payment method management
 
-For example, let's say you're trying to access a profile page on some website, and the
-data is stored on a database somewhere. When the page loads, the client sends a request
-to the server which, in turn, retrieves the corresponding data from the database.
-The server then returns the data back to the client for the UI to display on the page.
-This interaction is just one example of how a frontend and backend can work together to
-provide a great and scalable experience for its users.
+## Tech Stack
 
-**Important:** You might be wondering why you couldn't just query the database directly
-from the frontend. Databases require sensitive credentials for access, and if you store
-those on the frontend, they _will_ be found no matter where you put them. Keeping them
-on the server is much more secure because they won't be visible to the frontend.
-This is relevant mainly for purely client-rendered applications: newer React frameworks
-such as [Next.js](https://nextjs.org) promote a model of server rendering which unifies
-the data fetching and rendering into one place for improved security and performance.
+### Frontend
+- **React** - UI framework with hooks for state management
+- **Tailwind CSS** - Utility-first CSS framework for styling
+- **Lucide React** - Modern icon library
+- **Vite** - Fast build tool and development server
 
-## This Application
+### Backend
+- **FastAPI** - High-performance Python web framework
+- **Python 3.8+** - Backend runtime
+- **Pydantic** - Data validation using Python type annotations
 
-This starter pack consists of a frontend UI made with [React](https://react.dev) and a
-backend API made with [FastAPI](https://fastapi.tiangolo.com).
+## Getting Started
 
-React is a JavaScript library for building composable and interactive components through
-JSX which is markup similar to HTML. These components can be efficiently rendered to the
-browser even as the data provided changes.
+### Prerequisites
+- Node.js 16+ and npm
+- Python 3.8+
+- pip (Python package manager)
 
-FastAPI is a Python framework for building APIs with simple functions and decorators.
-The framework is easy to use and also, as the name implies, very fast.
+### Installation
 
-For a deeper explanation on how the app is put together, please view the corresponding
-`README` files for the [frontend](frontend/README.md) and [backend](backend/README.md).
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/travelai.git
+cd travelai
+```
 
-For deploying this app to the internet, see [DEPLOYMENT.md](DEPLOYMENT.md).
+2. Install frontend dependencies:
+```bash
+cd frontend
+npm install
+```
+
+3. Install backend dependencies:
+```bash
+cd ../backend
+pip install -r requirements.txt
+```
+
+### Running Locally
+
+1. Start the backend server:
+```bash
+cd backend
+fastapi dev src/api.py
+```
+
+2. In a new terminal, start the frontend development server:
+```bash
+cd frontend
+npm run dev
+```
+
+3. Open your browser and navigate to `http://localhost:5173`
+
+## Project Structure
+
+```
+travelai/
+├── frontend/           # React frontend application
+│   ├── src/
+│   │   ├── App.jsx    # Main application component
+│   │   └── main.jsx   # Application entry point
+│   ├── package.json
+│   └── vite.config.ts
+├── backend/           # FastAPI backend application
+│   ├── src/
+│   │   ├── api.py    # API routes and endpoints
+│   │   └── main.py   # Server configuration
+│   └── requirements.txt
+├── api/              # Vercel deployment configuration
+├── vercel.json       # Vercel settings
+└── README.md
+```
+
+## Deployment
+
+This application can be deployed on:
+- **Vercel** - For serverless deployment
+- **Render** - For containerized deployment
+
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License.
