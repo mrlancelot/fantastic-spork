@@ -1,9 +1,5 @@
 {
   "mcpServers": {
-    "convex": {
-      "command": "npx",
-      "args": ["-y", "convex@latest", "mcp", "start"]
-    },
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp"]

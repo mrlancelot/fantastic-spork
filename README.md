@@ -246,6 +246,21 @@ npm install
 npx playwright test
 ```
 
+## MCP Servers
+
+This project includes configuration for Model Context Protocol (MCP) servers:
+
+### Convex MCP
+Provides direct access to Convex database operations and functions.
+
+### Context7 MCP
+Upstash Context7 for enhanced context management and caching.
+
+To use these MCP servers:
+1. Ensure your IDE supports MCP (Cursor, Windsurf, Claude Desktop)
+2. The `.mcp.json` file in the root directory contains the configuration
+3. For Claude Desktop, use the `claude_desktop_config.json` file
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
