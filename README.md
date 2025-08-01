@@ -1,29 +1,31 @@
 # TravelAI - AI-Powered Travel Planning Platform
 
-A full-stack web application that uses AI to create personalized travel itineraries, built with React and FastAPI.
+A full-stack web application that uses AI to create personalized travel itineraries, built with React, FastAPI, Convex, and Clerk Authentication.
 
 ## Overview
 
 TravelAI is an intelligent travel planning platform that helps users create personalized itineraries with the help of AI. The application features:
 
-- **AI-Powered Planning**: Chat with an AI assistant to get personalized travel recommendations
+- **AI-Powered Planning**: Chat with Gemini AI assistant to get personalized travel recommendations
 - **Smart Itinerary Generation**: Automatically create detailed day-by-day travel plans
-- **Trip Management**: Organize and track all your trips in one place
+- **Trip Management**: Organize and track all your trips in one place with real-time sync
+- **Secure Authentication**: Google OAuth and email/password authentication via Clerk
+- **Real-time Database**: Powered by Convex for instant data synchronization
 - **Destination Discovery**: Explore popular destinations with curated guides
-- **Real-time Booking**: Direct links to book flights, hotels, and activities
 - **User Preferences**: Save your travel style and budget preferences
 
 ## Features
 
 ### 🤖 AI Travel Assistant
-- Interactive chat interface for travel planning
+- Interactive chat interface powered by Gemini AI
 - Personalized recommendations based on your preferences
 - Smart itinerary suggestions with time optimization
 
 ### 📅 Trip Dashboard
-- View upcoming and past trips
+- View and manage all your trips
+- Real-time updates across devices
 - Quick access to itineraries
-- Trip status tracking
+- Trip status tracking (upcoming, ongoing, completed)
 
 ### 🗺️ Itinerary Builder
 - Day-by-day activity planning
@@ -38,23 +40,32 @@ TravelAI is an intelligent travel planning platform that helps users create pers
 - Budget estimates and best travel times
 
 ### 👤 User Profile
+- Secure authentication with Clerk
 - Save travel preferences
 - Manage notification settings
 - Track favorite destinations
-- Payment method management
 
 ## Tech Stack
 
 ### Frontend
-- **React** - UI framework with hooks for state management
+- **React 18** - UI framework with hooks for state management
+- **Vite** - Fast build tool and development server
 - **Tailwind CSS** - Utility-first CSS framework for styling
 - **Lucide React** - Modern icon library
-- **Vite** - Fast build tool and development server
+- **Clerk** - Authentication and user management
+- **Convex** - Real-time database and backend functions
 
 ### Backend
 - **FastAPI** - High-performance Python web framework
 - **Python 3.8+** - Backend runtime
 - **Pydantic** - Data validation using Python type annotations
+- **Gemini AI** - Google's AI model for travel recommendations
+- **Convex Python SDK** - Backend integration with Convex
+
+### Infrastructure
+- **Convex** - Real-time database and serverless functions
+- **Clerk** - Authentication service
+- **Vercel** - Deployment platform
 
 ## Getting Started
 
@@ -62,13 +73,16 @@ TravelAI is an intelligent travel planning platform that helps users create pers
 - Node.js 16+ and npm
 - Python 3.8+
 - pip (Python package manager)
+- Convex account (free tier available)
+- Clerk account (free tier available)
+- Gemini API key
 
 ### Installation
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/travelai.git
-cd travelai
+git clone https://github.com/yourusername/fantastic-spork.git
+cd fantastic-spork
 ```
 
 2. Install frontend dependencies:
@@ -80,14 +94,52 @@ npm install
 3. Install backend dependencies:
 ```bash
 cd ../backend
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
+```
+
+### Environment Setup
+
+1. Copy the example environment file:
+```bash
+cp .env.example .env
+```
+
+2. Update the `.env` file with your API keys:
+```env
+# Gemini AI
+GEMINI_API_KEY=your_gemini_api_key_here
+
+# Clerk Authentication
+CLERK_SECRET_KEY=your_clerk_secret_key
+VITE_CLERK_PUBLISHABLE_KEY=your_clerk_publishable_key
+
+# Convex
+VITE_CONVEX_URL=your_convex_url
+CONVEX_URL=your_convex_url
+CONVEX_DEPLOYMENT=your_convex_deployment
+```
+
+3. Set up Convex:
+```bash
+cd frontend
+npx convex dev
 ```
 
 ### Running Locally
 
+#### Option 1: Run both services together
+```bash
+./run.sh both
+```
+
+#### Option 2: Run services separately
+
 1. Start the backend server:
 ```bash
 cd backend
+source venv/bin/activate
 fastapi dev src/api.py
 ```
 
@@ -97,35 +149,102 @@ cd frontend
 npm run dev
 ```
 
-3. Open your browser and navigate to `http://localhost:5173`
+3. In another terminal, run Convex:
+```bash
+cd frontend
+npx convex dev
+```
+
+4. Open your browser and navigate to `http://localhost:5173`
 
 ## Project Structure
 
 ```
-travelai/
-├── frontend/           # React frontend application
+fantastic-spork/
+├── frontend/                # React frontend application
 │   ├── src/
-│   │   ├── App.jsx    # Main application component
-│   │   └── main.jsx   # Application entry point
+│   │   ├── components/     # Reusable React components
+│   │   │   ├── AuthWrapper.jsx
+│   │   │   ├── SignInPage.jsx
+│   │   │   ├── SignUpPage.jsx
+│   │   │   └── TripForm.jsx
+│   │   ├── App.jsx        # Main application component
+│   │   └── main.jsx       # Application entry point
+│   ├── convex/            # Convex backend functions
+│   │   ├── schema.ts      # Database schema
+│   │   ├── users.ts       # User management functions
+│   │   ├── trips.ts       # Trip management functions
+│   │   └── chats.ts       # AI chat functions
 │   ├── package.json
-│   └── vite.config.ts
-├── backend/           # FastAPI backend application
+│   └── vite.config.js
+├── backend/               # FastAPI backend application
 │   ├── src/
-│   │   ├── api.py    # API routes and endpoints
-│   │   └── main.py   # Server configuration
+│   │   ├── api.py        # API routes and endpoints
+│   │   └── main.py       # Server configuration
 │   └── requirements.txt
-├── api/              # Vercel deployment configuration
-├── vercel.json       # Vercel settings
+├── api/                  # Vercel deployment configuration
+├── tests/                # Playwright E2E tests
+├── run.sh               # Utility script to run services
+├── vercel.json          # Vercel deployment settings
+├── CLAUDE.md            # AI assistant instructions
 └── README.md
 ```
 
+## API Endpoints
+
+### Backend API
+- `GET /hello` - Health check
+- `POST /chat` - Chat with Gemini AI
+- `POST /store-user` - Store user in Convex (called by frontend)
+- `GET /test-env` - Test environment variables
+
+### Convex Functions
+- `users.store` - Store authenticated user
+- `users.storeFromBackend` - Store user via backend API
+- `users.getMyUser` - Get current user data
+- `trips.create` - Create a new trip
+- `trips.getUserTrips` - Get user's trips
+- `chats.sendMessage` - Send message to AI
+
+## Authentication Flow
+
+1. User signs in with Clerk (Google OAuth or email/password)
+2. Frontend detects authentication
+3. Frontend calls backend API to store user in Convex
+4. Backend uses Convex SDK to store user data
+5. User can now access all features
+
 ## Deployment
 
-This application can be deployed on:
-- **Vercel** - For serverless deployment
-- **Render** - For containerized deployment
+### Vercel Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
+1. Install Vercel CLI:
+```bash
+npm i -g vercel
+```
+
+2. Deploy:
+```bash
+vercel
+```
+
+3. Set environment variables in Vercel dashboard
+
+### Docker Deployment
+
+```bash
+docker build -t travelai .
+docker run -p 8000:8000 --env-file .env travelai
+```
+
+## Testing
+
+Run Playwright E2E tests:
+```bash
+cd tests
+npm install
+npx playwright test
+```
 
 ## Contributing
 

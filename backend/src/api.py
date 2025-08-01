@@ -11,7 +11,9 @@ from pathlib import Path
 import httpx
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from convex import ConvexClient
 
 # Load environment variables from .env file
 env_path = Path(__file__).parent.parent.parent / '.env'
@@ -19,6 +21,22 @@ load_dotenv(env_path)
 
 # The app which manages all of the API routes
 app = FastAPI()
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Initialize Convex client
+convex_url = os.getenv("CONVEX_URL")
+if convex_url:
+    convex_client = ConvexClient(convex_url)
+else:
+    convex_client = None
 
 
 # Pydantic models for request/response
@@ -28,6 +46,19 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
+
+
+class StoreUserRequest(BaseModel):
+    clerk_user_id: str
+    email: str
+    name: str | None = None
+    image_url: str | None = None
+
+
+class StoreUserResponse(BaseModel):
+    success: bool
+    message: str
+    user_id: str | None = None
 
 
 # The decorator declares the function as a FastAPI route on the given path.
@@ -129,3 +160,42 @@ async def chat_with_gemini(request: ChatRequest) -> ChatResponse:
         except httpx.HTTPStatusError as e:
             error_detail = f"Gemini API error (status {e.response.status_code}): {e.response.text}"
             raise HTTPException(status_code=e.response.status_code, detail=error_detail)
+
+
+@app.post("/store-user", response_model=StoreUserResponse)
+async def store_user_in_convex(request: StoreUserRequest) -> StoreUserResponse:
+    """Store a user in Convex database when they authenticate via Clerk."""
+    if not convex_client:
+        raise HTTPException(
+            status_code=500, 
+            detail="Convex client not configured. Please set CONVEX_URL in environment variables."
+        )
+    
+    try:
+        # Call the Convex mutation to store the user
+        mutation_args = {
+            "clerkUserId": request.clerk_user_id,
+            "email": request.email,
+        }
+        
+        # Only add optional fields if they have values
+        if request.name is not None:
+            mutation_args["name"] = request.name
+        if request.image_url is not None:
+            mutation_args["imageUrl"] = request.image_url
+            
+        result = convex_client.mutation(
+            "users:storeFromBackend",
+            mutation_args
+        )
+        
+        return StoreUserResponse(
+            success=True,
+            message="User stored successfully",
+            user_id=result
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to store user: {str(e)}"
+        )

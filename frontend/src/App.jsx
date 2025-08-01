@@ -19,11 +19,24 @@ import {
   Share,
   Download,
   Bell,
-  CreditCard
+  CreditCard,
+  LogOut
 } from 'lucide-react';
+import { SignedIn, SignedOut, UserButton, useUser, useClerk } from "@clerk/clerk-react";
+import { useQuery, useMutation, useAction } from "convex/react";
+import { api } from "../convex/_generated/api";
+import { AuthWrapper } from "./components/AuthWrapper";
+import { SignInPage } from "./components/SignInPage";
+import { SignUpPage } from "./components/SignUpPage";
+import { TripForm } from "./components/TripForm";
 
 function App() {
   const [currentScreen, setCurrentScreen] = useState('home');
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const currentUser = useQuery(api.users.getMyUser);
+  const userTrips = useQuery(api.trips.getUserTrips);
+  const sendChatMessage = useAction(api.chats.sendMessage);
   const [searchData, setSearchData] = useState({
     destination: '',
     startDate: '',
@@ -31,24 +44,17 @@ function App() {
     travelers: 2
   });
 
-  const [trips] = useState([
-    {
-      id: '1',
-      destination: 'Tokyo, Japan',
-      dates: 'Mar 15-22, 2024',
-      status: 'upcoming',
-      image: 'https://images.pexels.com/photos/2506923/pexels-photo-2506923.jpeg?auto=compress&cs=tinysrgb&w=400',
-      travelers: 2
-    },
-    {
-      id: '2',
-      destination: 'Paris, France',
-      dates: 'Jan 10-17, 2024',
-      status: 'past',
-      image: 'https://images.pexels.com/photos/338515/pexels-photo-338515.jpeg?auto=compress&cs=tinysrgb&w=400',
-      travelers: 3
+  const trips = userTrips || [];
+  
+  // Handle SSO callback
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (hash.includes('/sso-callback')) {
+      // Clear the hash and redirect to home
+      window.location.hash = '';
+      setCurrentScreen('home');
     }
-  ]);
+  }, []);
 
   const [itinerary] = useState([
     {
@@ -87,30 +93,46 @@ function App() {
           </div>
           
           <div className="flex items-center space-x-6">
-            <button 
-              onClick={() => setCurrentScreen('dashboard')}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                currentScreen === 'dashboard' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600'
-              }`}
-            >
-              My Trips
-            </button>
-            <button 
-              onClick={() => setCurrentScreen('guide')}
-              className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                currentScreen === 'guide' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600'
-              }`}
-            >
-              Destinations
-            </button>
-            <button 
-              onClick={() => setCurrentScreen('profile')}
-              className={`p-2 rounded-full transition-colors ${
-                currentScreen === 'profile' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600'
-              }`}
-            >
-              <User className="h-5 w-5" />
-            </button>
+            <SignedIn>
+              <button 
+                onClick={() => setCurrentScreen('dashboard')}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  currentScreen === 'dashboard' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600'
+                }`}
+              >
+                My Trips
+              </button>
+              <button 
+                onClick={() => setCurrentScreen('guide')}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  currentScreen === 'guide' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600'
+                }`}
+              >
+                Destinations
+              </button>
+              <UserButton 
+                afterSignOutUrl="/"
+                appearance={{
+                  elements: {
+                    avatarBox: "w-10 h-10"
+                  }
+                }}
+              />
+            </SignedIn>
+            <SignedOut>
+              <button 
+                onClick={() => setCurrentScreen('signin')}
+                className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+              >
+                Sign In
+              </button>
+              <button 
+                onClick={() => setCurrentScreen('signup')}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+              >
+                Sign Up
+              </button>
+            </SignedOut>
           </div>
         </div>
       </div>
@@ -185,13 +207,24 @@ function App() {
             </div>
           </div>
 
-          <button 
-            onClick={() => setCurrentScreen('planning')}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center space-x-2"
-          >
-            <Search className="h-5 w-5" />
-            <span>Start Planning with AI</span>
-          </button>
+          <SignedIn>
+            <button 
+              onClick={() => setCurrentScreen('planning')}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center space-x-2"
+            >
+              <Search className="h-5 w-5" />
+              <span>Start Planning with AI</span>
+            </button>
+          </SignedIn>
+          <SignedOut>
+            <button 
+              onClick={() => setCurrentScreen('signin')}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center space-x-2"
+            >
+              <Search className="h-5 w-5" />
+              <span>Sign In to Start Planning</span>
+            </button>
+          </SignedOut>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
@@ -223,59 +256,100 @@ function App() {
     </div>
   );
 
-  const Dashboard = () => (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">My Trips</h1>
-          <button 
-            onClick={() => setCurrentScreen('planning')}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
-          >
-            <Plus className="h-5 w-5" />
-            <span>New Trip</span>
-          </button>
-        </div>
+  const Dashboard = () => {
+    const [showTripForm, setShowTripForm] = useState(false);
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {trips.map(trip => (
-            <div key={trip.id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
-              <img src={trip.image} alt={trip.destination} className="w-full h-48 object-cover" />
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-2">
-                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                    trip.status === 'upcoming' ? 'bg-green-100 text-green-800' : 
-                    trip.status === 'past' ? 'bg-gray-100 text-gray-800' : 
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {trip.status === 'upcoming' ? 'Upcoming' : trip.status === 'past' ? 'Completed' : 'Planning'}
-                  </span>
-                  <div className="flex items-center text-gray-500 text-sm">
-                    <Users className="h-4 w-4 mr-1" />
-                    {trip.travelers}
-                  </div>
+    return (
+      <div className="min-h-screen bg-gray-50 py-8">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">My Trips</h1>
+            <button 
+              onClick={() => setShowTripForm(true)}
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
+            >
+              <Plus className="h-5 w-5" />
+              <span>New Trip</span>
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {trips.length === 0 ? (
+              <div className="col-span-full text-center py-12">
+                <div className="text-gray-400 mb-4">
+                  <MapPin className="h-16 w-16 mx-auto" />
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">{trip.destination}</h3>
-                <p className="text-gray-600 mb-4">{trip.dates}</p>
-                
-                <div className="flex space-x-2">
-                  <button 
-                    onClick={() => setCurrentScreen('itinerary')}
-                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors text-sm font-medium"
-                  >
-                    View Itinerary
-                  </button>
-                  <button className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-lg transition-colors text-sm font-medium">
-                    Edit Trip
-                  </button>
-                </div>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No trips yet</h3>
+                <p className="text-gray-600 mb-6">Start planning your next adventure!</p>
+                <button
+                  onClick={() => setShowTripForm(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
+                >
+                  Create Your First Trip
+                </button>
               </div>
-            </div>
-          ))}
+            ) : (
+              trips.map(trip => {
+                const startDate = new Date(trip.startDate);
+                const endDate = new Date(trip.endDate);
+                const today = new Date();
+                const status = startDate > today ? 'upcoming' : endDate < today ? 'past' : 'ongoing';
+                
+                return (
+                  <div key={trip._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
+                    <div className="h-48 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                      <MapPin className="h-16 w-16 text-white opacity-50" />
+                    </div>
+                    <div className="p-6">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                          status === 'upcoming' ? 'bg-green-100 text-green-800' : 
+                          status === 'past' ? 'bg-gray-100 text-gray-800' : 
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {status === 'upcoming' ? 'Upcoming' : status === 'past' ? 'Completed' : 'Ongoing'}
+                        </span>
+                        <div className="flex items-center text-gray-500 text-sm">
+                          <Users className="h-4 w-4 mr-1" />
+                          {trip.travelers}
+                        </div>
+                      </div>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{trip.destination}</h3>
+                      <p className="text-gray-600 mb-4">
+                        {new Date(trip.startDate).toLocaleDateString()} - {new Date(trip.endDate).toLocaleDateString()}
+                      </p>
+                      
+                      <div className="flex space-x-2">
+                        <button 
+                          onClick={() => setCurrentScreen('itinerary')}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors text-sm font-medium"
+                        >
+                          View Details
+                        </button>
+                        <button className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-lg transition-colors text-sm font-medium">
+                          Edit Trip
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {showTripForm && (
+            <TripForm 
+              onClose={() => setShowTripForm(false)} 
+              onSuccess={() => {
+                setShowTripForm(false);
+                // Trips will automatically refresh due to Convex reactivity
+              }}
+            />
+          )}
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const PlanningInterface = () => {
     const [step, setStep] = useState(1);
@@ -304,22 +378,10 @@ function App() {
       
       setIsLoading(true);
       try {
-        const response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ message: userMessage }),
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to get response');
-        }
-        
-        const data = await response.json();
+        const response = await sendChatMessage({ message: userMessage });
         
         // Add AI response to chat history
-        setChatHistory(prev => [...prev, { role: 'assistant', content: data.response }]);
+        setChatHistory(prev => [...prev, { role: 'assistant', content: response }]);
       } catch (error) {
         console.error('Error sending message:', error);
         setChatHistory(prev => [...prev, { 
@@ -731,10 +793,14 @@ function App() {
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="text-center mb-6">
               <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <User className="h-12 w-12 text-blue-600" />
+                {user?.imageUrl ? (
+                  <img src={user.imageUrl} alt={user.fullName} className="w-24 h-24 rounded-full object-cover" />
+                ) : (
+                  <User className="h-12 w-12 text-blue-600" />
+                )}
               </div>
-              <h2 className="text-xl font-semibold text-gray-900">John Doe</h2>
-              <p className="text-gray-600">john.doe@email.com</p>
+              <h2 className="text-xl font-semibold text-gray-900">{user?.fullName || 'User'}</h2>
+              <p className="text-gray-600">{user?.emailAddresses[0]?.emailAddress}</p>
             </div>
 
             <div className="space-y-3">
@@ -753,6 +819,13 @@ function App() {
               <button className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-3">
                 <Settings className="h-5 w-5 text-gray-400" />
                 <span>Account Settings</span>
+              </button>
+              <button 
+                onClick={() => signOut()}
+                className="w-full text-left px-4 py-3 rounded-lg hover:bg-red-50 transition-colors flex items-center space-x-3 text-red-600"
+              >
+                <LogOut className="h-5 w-5" />
+                <span>Sign Out</span>
               </button>
             </div>
           </div>
@@ -835,15 +908,19 @@ function App() {
       case 'itinerary': return <ItineraryView />;
       case 'guide': return <DestinationGuide />;
       case 'profile': return <UserProfile />;
+      case 'signin': return <SignInPage />;
+      case 'signup': return <SignUpPage />;
       default: return <Homepage />;
     }
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <NavBar />
-      {renderCurrentScreen()}
-    </div>
+    <AuthWrapper>
+      <div className="min-h-screen bg-white">
+        <NavBar />
+        {renderCurrentScreen()}
+      </div>
+    </AuthWrapper>
   );
 }
 
