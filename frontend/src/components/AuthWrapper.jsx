@@ -1,17 +1,14 @@
 import { useUser } from "@clerk/clerk-react";
-import { useConvexAuth, useMutation } from "convex/react";
+import { useConvexAuth } from "convex/react";
 import { useEffect, useState } from "react";
-import { api } from "../../convex/_generated/api";
 
 export function AuthWrapper({ children }) {
   const { isLoaded: clerkLoaded, isSignedIn, user } = useUser();
-  const { isLoading: convexLoading, isAuthenticated } = useConvexAuth();
-  const storeUser = useMutation(api.users.store);
+  const { isLoading: convexLoading } = useConvexAuth();
   const [hasStoredUser, setHasStoredUser] = useState(false);
 
   useEffect(() => {
-    
-    // Call backend API when user is authenticated with Clerk
+    // Store user in backend when authenticated with Clerk
     if (clerkLoaded && isSignedIn && user && !hasStoredUser) {
       const storeUserInBackend = async () => {
         try {
@@ -43,14 +40,7 @@ export function AuthWrapper({ children }) {
       
       storeUserInBackend();
     }
-    
-    // Original Convex approach (keeping as fallback)
-    if (clerkLoaded && isSignedIn && isAuthenticated && !hasStoredUser) {
-      storeUser().catch(() => {
-        // Silently handle error
-      });
-    }
-  }, [clerkLoaded, isSignedIn, isAuthenticated, storeUser, user, hasStoredUser]);
+  }, [clerkLoaded, isSignedIn, user, hasStoredUser]);
 
   // Add a timeout to prevent infinite loading
   const [loadingTimeout, setLoadingTimeout] = useState(false);
