@@ -26,6 +26,7 @@ import { SignedIn, SignedOut, UserButton, useUser, useClerk } from "@clerk/clerk
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../convex/_generated/api";
 import { AuthWrapper } from "./components/AuthWrapper";
+import { ConvexDebug } from "./components/ConvexDebug";
 import { SignInPage } from "./components/SignInPage";
 import { SignUpPage } from "./components/SignUpPage";
 import { TripForm } from "./components/TripForm";
@@ -916,6 +917,7 @@ function App() {
 
   return (
     <AuthWrapper>
+      <ConvexDebug />
       <div className="min-h-screen bg-white">
         <NavBar />
         {renderCurrentScreen()}
