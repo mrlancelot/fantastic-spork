@@ -1,19 +1,20 @@
-import { useAuth } from "@clerk/clerk-react";
+import { useAuth, useUser } from "@clerk/clerk-react";
 import { useEffect } from "react";
 
 export function ConvexDebug() {
   const { getToken } = useAuth();
+  const { isLoaded, isSignedIn } = useUser();
   
   useEffect(() => {
     const checkToken = async () => {
+      // Only check for token if user is signed in
+      if (!isLoaded || !isSignedIn) {
+        return;
+      }
+      
       try {
         const token = await getToken({ template: "convex" });
-        console.log("Convex JWT token:", token);
-        if (token) {
-          // Decode and log the token payload
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          console.log("Token payload:", payload);
-        } else {
+        if (!token) {
           console.error("No Convex JWT token found - you need to create a JWT template named 'convex' in Clerk dashboard");
         }
       } catch (error) {
@@ -22,7 +23,7 @@ export function ConvexDebug() {
     };
     
     checkToken();
-  }, [getToken]);
+  }, [getToken, isLoaded, isSignedIn]);
   
   return null;
 }
