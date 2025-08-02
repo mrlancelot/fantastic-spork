@@ -1,26 +1,22 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  Plane, 
-  MapPin, 
-  Calendar, 
-  Users, 
-  Settings, 
-  User, 
-  Search,
   Plus,
   Clock,
   Star,
   Map,
   ExternalLink,
-  ChevronRight,
-  Bot,
-  Send,
   Heart,
   Share,
   Download,
   Bell,
   CreditCard,
-  LogOut
+  LogOut,
+  Sparkles,
+  TrendingUp,
+  Globe,
+  Shield,
+  Users
 } from 'lucide-react';
 import { SignedIn, SignedOut, UserButton, useUser, useClerk } from "@clerk/clerk-react";
 import { useQuery, useMutation, useAction } from "convex/react";
@@ -31,308 +27,383 @@ import { SignInPage } from "./components/SignInPage";
 import { SignUpPage } from "./components/SignUpPage";
 import { TripForm } from "./components/TripForm";
 
+// Import all our new UI components
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+  CardContent,
+  CardFooter,
+  Badge,
+  HeroSection,
+  DestinationCard,
+  SearchBar,
+  ChatInterface,
+  NavBar,
+  FeatureSection,
+  Toast
+} from './components/ui';
+
+// Sample destination data
+const popularDestinations = [
+  {
+    id: 1,
+    destination: 'Tokyo, Japan',
+    image: 'https://images.pexels.com/photos/2506923/pexels-photo-2506923.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.8,
+    price: 150,
+    duration: 7,
+    travelers: 2,
+    tags: ['Culture', 'Food', 'Technology']
+  },
+  {
+    id: 2,
+    destination: 'Bali, Indonesia',
+    image: 'https://images.pexels.com/photos/2166559/pexels-photo-2166559.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.9,
+    price: 80,
+    duration: 10,
+    travelers: 2,
+    tags: ['Beach', 'Nature', 'Wellness']
+  },
+  {
+    id: 3,
+    destination: 'Paris, France',
+    image: 'https://images.pexels.com/photos/338515/pexels-photo-338515.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.7,
+    price: 200,
+    duration: 5,
+    travelers: 2,
+    tags: ['Romance', 'Art', 'History']
+  },
+  {
+    id: 4,
+    destination: 'New York, USA',
+    image: 'https://images.pexels.com/photos/466685/pexels-photo-466685.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.6,
+    price: 250,
+    duration: 4,
+    travelers: 2,
+    tags: ['Urban', 'Culture', 'Shopping']
+  },
+  {
+    id: 5,
+    destination: 'Dubai, UAE',
+    image: 'https://images.pexels.com/photos/1534411/pexels-photo-1534411.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.7,
+    price: 300,
+    duration: 6,
+    travelers: 2,
+    tags: ['Luxury', 'Modern', 'Shopping']
+  },
+  {
+    id: 6,
+    destination: 'Santorini, Greece',
+    image: 'https://images.pexels.com/photos/1010657/pexels-photo-1010657.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.9,
+    price: 180,
+    duration: 7,
+    travelers: 2,
+    tags: ['Island', 'Romance', 'Beach']
+  }
+];
+
 function App() {
   const [currentScreen, setCurrentScreen] = useState('home');
-  const { user } = useUser();
+  const [userIntent, setUserIntent] = useState(null);
+  const [showToast, setShowToast] = useState(false);
+  const { user, isSignedIn } = useUser();
   const { signOut } = useClerk();
   const currentUser = useQuery(api.users.getMyUser);
   const userTrips = useQuery(api.trips.getUserTrips);
   const sendChatMessage = useAction(api.chats.sendMessage);
-  const [searchData, setSearchData] = useState({
-    destination: '',
-    startDate: '',
-    endDate: '',
-    travelers: 2
-  });
-
+  
   const trips = userTrips || [];
   
-  // Handle SSO callback
+  // Handle SSO callback and user intent after authentication
   useEffect(() => {
     const hash = window.location.hash;
     if (hash.includes('/sso-callback')) {
-      // Clear the hash and redirect to home
       window.location.hash = '';
       setCurrentScreen('home');
     }
-  }, []);
-
-  const [itinerary] = useState([
-    {
-      id: '1',
-      time: '08:00',
-      title: 'Flight to Tokyo',
-      type: 'flight',
-      location: 'JFK Airport',
-      bookingLink: '#'
-    },
-    {
-      id: '2',
-      time: '14:30',
-      title: 'Hotel Check-in',
-      type: 'hotel',
-      location: 'Shibuya District',
-      bookingLink: '#'
-    },
-    {
-      id: '3',
-      time: '18:00',
-      title: 'Ramen Dinner',
-      type: 'restaurant',
-      location: 'Ichiran Shibuya',
-      bookingLink: '#'
+    
+    // Handle user intent after successful authentication
+    if (isSignedIn && userIntent) {
+      const { action, data } = userIntent;
+      switch (action) {
+        case 'planning':
+          setCurrentScreen('planning');
+          // If there's search data, you could pass it to the planning screen
+          break;
+        case 'destination':
+          setCurrentScreen('planning');
+          break;
+        case 'dashboard':
+          setCurrentScreen('dashboard');
+          break;
+        default:
+          setCurrentScreen(action);
+      }
+      setUserIntent(null); // Clear intent after handling
     }
-  ]);
+  }, [isSignedIn, userIntent]);
 
-  const NavBar = () => (
-    <nav className="bg-white shadow-sm border-b border-gray-200">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
-          <div className="flex items-center space-x-2 cursor-pointer" onClick={() => setCurrentScreen('home')}>
-            <Plane className="h-8 w-8 text-blue-600" />
-            <span className="text-xl font-bold text-gray-900">TravelAI</span>
-          </div>
-          
-          <div className="flex items-center space-x-6">
-            <SignedIn>
-              <button 
-                onClick={() => setCurrentScreen('dashboard')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  currentScreen === 'dashboard' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600'
-                }`}
-              >
-                My Trips
-              </button>
-              <button 
-                onClick={() => setCurrentScreen('guide')}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  currentScreen === 'guide' ? 'text-blue-600 bg-blue-50' : 'text-gray-700 hover:text-blue-600'
-                }`}
-              >
-                Destinations
-              </button>
-              <UserButton 
-                afterSignOutUrl="/"
-                appearance={{
-                  elements: {
-                    avatarBox: "w-10 h-10"
-                  }
-                }}
-              />
-            </SignedIn>
-            <SignedOut>
-              <button 
-                onClick={() => setCurrentScreen('signin')}
-                className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-              >
-                Sign In
-              </button>
-              <button 
-                onClick={() => setCurrentScreen('signup')}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
-              >
-                Sign Up
-              </button>
-            </SignedOut>
-          </div>
-        </div>
-      </div>
-    </nav>
-  );
+  // Function to handle authenticated actions
+  const handleAuthenticatedAction = (action, data = null) => {
+    if (isSignedIn) {
+      // User is authenticated, proceed with action
+      switch (action) {
+        case 'planning':
+          setCurrentScreen('planning');
+          break;
+        case 'dashboard':
+          setCurrentScreen('dashboard');
+          break;
+        default:
+          setCurrentScreen(action);
+      }
+    } else {
+      // Store intent and redirect to auth
+      setUserIntent({ action, data });
+      setShowToast(true);
+      // Small delay to show toast before navigation
+      setTimeout(() => {
+        setCurrentScreen('signin');
+      }, 500);
+    }
+  };
+
+  // Page transition variants
+  const pageVariants = {
+    initial: { opacity: 0, x: -20 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: 20 }
+  };
 
   const Homepage = () => (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-teal-50">
-      <div className="max-w-4xl mx-auto px-4 pt-20 pb-16">
-        <div className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-gray-900 mb-4">Plan Your Perfect Trip</h1>
-          <p className="text-xl text-gray-600 mb-8">AI-powered travel planning with personalized itineraries</p>
+    <motion.div
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      variants={pageVariants}
+      className="min-h-screen"
+    >
+      {/* Hero Section */}
+      <HeroSection
+        title="Plan Your Perfect Trip"
+        subtitle="AI-powered travel planning with personalized itineraries that adapt to your style"
+        ctaText="Start Planning with AI"
+        onCtaClick={() => handleAuthenticatedAction('planning')}
+        className="min-h-[600px]"
+      />
+
+      {/* Search Section */}
+      <div className="py-20 px-4 bg-neutral-50">
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              Where would you like to go?
+            </h2>
+            <p className="text-xl text-neutral-600">
+              Search destinations and let AI create your perfect itinerary
+            </p>
+          </motion.div>
+
+          <SearchBar
+            onSearch={(data) => {
+              console.log('Search:', data);
+              handleAuthenticatedAction('planning', data);
+            }}
+          />
         </div>
+      </div>
 
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Destination</label>
-              <div className="relative">
-                <MapPin className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Where to?"
-                  value={searchData.destination}
-                  onChange={(e) => setSearchData({...searchData, destination: e.target.value})}
-                  className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      {/* Popular Destinations */}
+      <div className="py-20 px-4">
+        <div className="max-w-7xl mx-auto">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-4">
+              <span className="gradient-text">Popular Destinations</span>
+            </h2>
+            <p className="text-xl text-neutral-600">
+              Explore trending destinations handpicked by our AI
+            </p>
+          </motion.div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {popularDestinations.map((dest, index) => (
+              <motion.div
+                key={dest.id}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <DestinationCard
+                  {...dest}
+                  onSelect={() => {
+                    console.log('Selected:', dest.destination);
+                    handleAuthenticatedAction('planning', { destination: dest.destination });
+                  }}
                 />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Check-in</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <input
-                  type="date"
-                  value={searchData.startDate}
-                  onChange={(e) => setSearchData({...searchData, startDate: e.target.value})}
-                  className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Check-out</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <input
-                  type="date"
-                  value={searchData.endDate}
-                  onChange={(e) => setSearchData({...searchData, endDate: e.target.value})}
-                  className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700">Travelers</label>
-              <div className="relative">
-                <Users className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
-                <select
-                  value={searchData.travelers}
-                  onChange={(e) => setSearchData({...searchData, travelers: parseInt(e.target.value)})}
-                  className="pl-10 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value={1}>1 person</option>
-                  <option value={2}>2 people</option>
-                  <option value={3}>3 people</option>
-                  <option value={4}>4+ people</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <SignedIn>
-            <button 
-              onClick={() => setCurrentScreen('planning')}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center space-x-2"
-            >
-              <Search className="h-5 w-5" />
-              <span>Start Planning with AI</span>
-            </button>
-          </SignedIn>
-          <SignedOut>
-            <button 
-              onClick={() => setCurrentScreen('signin')}
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg transition-colors flex items-center justify-center space-x-2"
-            >
-              <Search className="h-5 w-5" />
-              <span>Sign In to Start Planning</span>
-            </button>
-          </SignedOut>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="text-center">
-            <div className="bg-blue-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-              <Bot className="h-8 w-8 text-blue-600" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">AI-Powered Planning</h3>
-            <p className="text-gray-600">Smart agents research and plan your perfect itinerary</p>
-          </div>
-          
-          <div className="text-center">
-            <div className="bg-teal-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-              <Map className="h-8 w-8 text-teal-600" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">Personalized Routes</h3>
-            <p className="text-gray-600">Custom itineraries based on your preferences</p>
-          </div>
-          
-          <div className="text-center">
-            <div className="bg-orange-100 rounded-full w-16 h-16 flex items-center justify-center mx-auto mb-4">
-              <ExternalLink className="h-8 w-8 text-orange-600" />
-            </div>
-            <h3 className="text-lg font-semibold mb-2">Direct Booking</h3>
-            <p className="text-gray-600">Book flights, hotels, and activities instantly</p>
+              </motion.div>
+            ))}
           </div>
         </div>
       </div>
-    </div>
+
+      {/* Features Section */}
+      <FeatureSection className="bg-neutral-50" />
+
+      {/* Stats Section */}
+      <div className="py-20 px-4 bg-gradient-to-br from-primary-600 to-secondary-600 text-white">
+        <div className="max-w-7xl mx-auto">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 text-center">
+            {[
+              { label: 'Happy Travelers', value: '50K+', icon: Heart },
+              { label: 'Destinations', value: '200+', icon: Globe },
+              { label: 'AI Itineraries', value: '100K+', icon: Sparkles },
+              { label: 'Trust Score', value: '4.9/5', icon: Shield }
+            ].map((stat, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, scale: 0.5 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: index * 0.1 }}
+                className="space-y-2"
+              >
+                <stat.icon className="w-12 h-12 mx-auto mb-4 opacity-80" />
+                <div className="text-4xl font-bold">{stat.value}</div>
+                <div className="text-white/80">{stat.label}</div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </motion.div>
   );
 
   const Dashboard = () => {
     const [showTripForm, setShowTripForm] = useState(false);
 
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
+      <motion.div
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        variants={pageVariants}
+        className="min-h-screen bg-neutral-50 py-8"
+      >
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex justify-between items-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">My Trips</h1>
-            <button 
+            <div>
+              <h1 className="text-3xl font-bold text-neutral-900 mb-2">My Trips</h1>
+              <p className="text-neutral-600">Manage and view all your travel plans</p>
+            </div>
+            <Button 
               onClick={() => setShowTripForm(true)}
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors flex items-center space-x-2"
+              size="lg"
+              variant="gradient"
+              className="shadow-lg"
             >
-              <Plus className="h-5 w-5" />
-              <span>New Trip</span>
-            </button>
+              <Plus className="w-5 h-5 mr-2" />
+              New Trip
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {trips.length === 0 ? (
-              <div className="col-span-full text-center py-12">
-                <div className="text-gray-400 mb-4">
-                  <MapPin className="h-16 w-16 mx-auto" />
-                </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No trips yet</h3>
-                <p className="text-gray-600 mb-6">Start planning your next adventure!</p>
-                <button
-                  onClick={() => setShowTripForm(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-6 rounded-lg transition-colors"
-                >
-                  Create Your First Trip
-                </button>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="col-span-full"
+              >
+                <Card className="text-center py-16">
+                  <CardContent>
+                    <div className="w-20 h-20 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <Map className="w-10 h-10 text-primary-600" />
+                    </div>
+                    <h3 className="text-2xl font-semibold text-neutral-900 mb-2">No trips yet</h3>
+                    <p className="text-neutral-600 mb-6 max-w-sm mx-auto">
+                      Start planning your next adventure with our AI-powered travel assistant
+                    </p>
+                    <Button
+                      onClick={() => setShowTripForm(true)}
+                      variant="primary"
+                      size="lg"
+                    >
+                      Create Your First Trip
+                    </Button>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ) : (
-              trips.map(trip => {
+              trips.map((trip, index) => {
                 const startDate = new Date(trip.startDate);
                 const endDate = new Date(trip.endDate);
                 const today = new Date();
                 const status = startDate > today ? 'upcoming' : endDate < today ? 'past' : 'ongoing';
                 
                 return (
-                  <div key={trip._id} className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
-                    <div className="h-48 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                      <MapPin className="h-16 w-16 text-white opacity-50" />
-                    </div>
-                    <div className="p-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          status === 'upcoming' ? 'bg-green-100 text-green-800' : 
-                          status === 'past' ? 'bg-gray-100 text-gray-800' : 
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {status === 'upcoming' ? 'Upcoming' : status === 'past' ? 'Completed' : 'Ongoing'}
-                        </span>
-                        <div className="flex items-center text-gray-500 text-sm">
-                          <Users className="h-4 w-4 mr-1" />
-                          {trip.travelers}
+                  <motion.div
+                    key={trip._id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <Card className="h-full hover:shadow-2xl transition-shadow">
+                      <div className="h-48 bg-gradient-to-br from-primary-400 to-primary-600 relative overflow-hidden">
+                        <div className="absolute inset-0 bg-black/20" />
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <Map className="w-20 h-20 text-white/50" />
                         </div>
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{trip.destination}</h3>
-                      <p className="text-gray-600 mb-4">
-                        {new Date(trip.startDate).toLocaleDateString()} - {new Date(trip.endDate).toLocaleDateString()}
-                      </p>
-                      
-                      <div className="flex space-x-2">
-                        <button 
-                          onClick={() => setCurrentScreen('itinerary')}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors text-sm font-medium"
+                        <Badge
+                          variant={status === 'upcoming' ? 'success' : status === 'past' ? 'secondary' : 'primary'}
+                          className="absolute top-4 right-4"
                         >
-                          View Details
-                        </button>
-                        <button className="flex-1 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-lg transition-colors text-sm font-medium">
-                          Edit Trip
-                        </button>
+                          {status === 'upcoming' ? 'Upcoming' : status === 'past' ? 'Completed' : 'Ongoing'}
+                        </Badge>
                       </div>
-                    </div>
-                  </div>
+                      <CardContent className="pt-6">
+                        <CardTitle className="mb-2">{trip.destination}</CardTitle>
+                        <CardDescription className="mb-4">
+                          {new Date(trip.startDate).toLocaleDateString()} - {new Date(trip.endDate).toLocaleDateString()}
+                        </CardDescription>
+                        <div className="flex items-center text-sm text-neutral-600 mb-6">
+                          <Users className="w-4 h-4 mr-1" />
+                          {trip.travelers} travelers
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            onClick={() => setCurrentScreen('itinerary')}
+                            variant="primary"
+                            size="sm"
+                            className="flex-1"
+                          >
+                            View Details
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                          >
+                            Edit Trip
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 );
               })
             )}
@@ -343,562 +414,240 @@ function App() {
               onClose={() => setShowTripForm(false)} 
               onSuccess={() => {
                 setShowTripForm(false);
-                // Trips will automatically refresh due to Convex reactivity
               }}
             />
           )}
         </div>
-      </div>
+      </motion.div>
     );
   };
 
   const PlanningInterface = () => {
-    const [step, setStep] = useState(1);
-    const [chatMessage, setChatMessage] = useState('');
-    const [chatHistory, setChatHistory] = useState([
-      { role: 'assistant', content: "Hi! I'm your AI travel assistant. Tell me about your dream trip to Tokyo!" }
-    ]);
-    const [isLoading, setIsLoading] = useState(false);
-    const chatContainerRef = useRef(null);
-    
-    // Auto-scroll to bottom when new messages are added
-    useEffect(() => {
-      if (chatContainerRef.current) {
-        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
-      }
-    }, [chatHistory]);
-    
-    const sendMessage = async () => {
-      if (!chatMessage.trim() || isLoading) return;
-      
-      const userMessage = chatMessage;
-      setChatMessage('');
-      
-      // Add user message to chat history
-      setChatHistory(prev => [...prev, { role: 'user', content: userMessage }]);
-      
-      setIsLoading(true);
-      try {
-        const response = await sendChatMessage({ message: userMessage });
-        
-        // Add AI response to chat history
-        setChatHistory(prev => [...prev, { role: 'assistant', content: response }]);
-      } catch (error) {
-        console.error('Error sending message:', error);
-        setChatHistory(prev => [...prev, { 
-          role: 'assistant', 
-          content: 'Sorry, I encountered an error. Please try again.' 
-        }]);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    const handleKeyPress = (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    };
-    
     return (
-      <div className="min-h-screen bg-gray-50 py-8">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Plan Your Trip</h1>
-            <div className="flex items-center space-x-4">
-              {[1, 2, 3, 4].map(i => (
-                <div key={i} className={`flex items-center ${i < 4 ? 'flex-1' : ''}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                    step >= i ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600'
-                  }`}>
-                    {i}
-                  </div>
-                  {i < 4 && <div className={`flex-1 h-1 mx-2 ${step > i ? 'bg-blue-600' : 'bg-gray-200'}`} />}
-                </div>
-              ))}
-            </div>
-          </div>
+      <motion.div
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        variants={pageVariants}
+        className="min-h-screen bg-neutral-50 py-8"
+      >
+        <div className="max-w-7xl mx-auto px-4">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-12"
+          >
+            <h1 className="text-4xl font-bold mb-4">
+              <span className="gradient-text">AI Trip Planning</span>
+            </h1>
+            <p className="text-xl text-neutral-600">
+              Chat with our AI to create your perfect itinerary
+            </p>
+          </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-xl font-semibold mb-6">Travel Preferences</h2>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Trip Type</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Adventure', 'Relaxation', 'Culture', 'Business'].map(type => (
-                      <button key={type} className="p-3 border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left">
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Budget Range</label>
-                  <select className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option>Budget ($50-100/day)</option>
-                    <option>Mid-range ($100-200/day)</option>
-                    <option>Luxury ($200+/day)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Interests</label>
-                  <div className="flex flex-wrap gap-2">
-                    {['Food', 'Museums', 'Nightlife', 'Nature', 'Shopping', 'History'].map(interest => (
-                      <button key={interest} className="px-3 py-2 bg-gray-100 hover:bg-blue-100 text-sm rounded-full transition-colors">
-                        {interest}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <button 
-                onClick={() => setCurrentScreen('itinerary')}
-                className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-              >
-                Generate Itinerary
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <div className="flex items-center space-x-2 mb-6">
-                <Bot className="h-6 w-6 text-blue-600" />
-                <h2 className="text-xl font-semibold">AI Travel Assistant</h2>
-              </div>
-              
-              <div ref={chatContainerRef} className="h-80 bg-gray-50 rounded-lg p-4 mb-4 overflow-y-auto">
-                <div className="space-y-4">
-                  {chatHistory.map((message, index) => (
-                    <div key={index} className={`flex items-start space-x-3 ${message.role === 'user' ? 'justify-end' : ''}`}>
-                      {message.role === 'assistant' && (
-                        <div className="bg-blue-600 rounded-full p-2">
-                          <Bot className="h-4 w-4 text-white" />
-                        </div>
-                      )}
-                      <div className={`rounded-lg p-3 shadow-sm max-w-xs ${
-                        message.role === 'user' ? 'bg-blue-600 text-white' : 'bg-white'
-                      }`}>
-                        <p className="text-sm">{message.content}</p>
-                      </div>
-                      {message.role === 'user' && (
-                        <div className="bg-gray-300 rounded-full p-2">
-                          <User className="h-4 w-4 text-gray-600" />
-                        </div>
-                      )}
+            {/* Trip Preferences */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>Trip Preferences</CardTitle>
+                  <CardDescription>Tell us about your ideal trip</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">Trip Type</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      {['Adventure', 'Relaxation', 'Culture', 'Business'].map(type => (
+                        <Button
+                          key={type}
+                          variant="outline"
+                          className="justify-start"
+                        >
+                          {type}
+                        </Button>
+                      ))}
                     </div>
-                  ))}
-                  {isLoading && (
-                    <div className="flex items-start space-x-3">
-                      <div className="bg-blue-600 rounded-full p-2">
-                        <Bot className="h-4 w-4 text-white" />
-                      </div>
-                      <div className="bg-white rounded-lg p-3 shadow-sm">
-                        <p className="text-sm text-gray-500">Typing...</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+                  </div>
 
-              <div className="flex space-x-2">
-                <input
-                  type="text"
-                  value={chatMessage}
-                  onChange={(e) => setChatMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask about your trip..."
-                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  disabled={isLoading}
-                />
-                <button 
-                  onClick={sendMessage}
-                  disabled={isLoading || !chatMessage.trim()}
-                  className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Send className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">Budget Range</label>
+                    <select className="w-full px-4 py-3 border border-neutral-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent">
+                      <option>Budget ($50-100/day)</option>
+                      <option>Mid-range ($100-200/day)</option>
+                      <option>Luxury ($200+/day)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-neutral-700 mb-2">Interests</label>
+                    <div className="flex flex-wrap gap-2">
+                      {['Food', 'Museums', 'Nightlife', 'Nature', 'Shopping', 'History'].map(interest => (
+                        <Badge
+                          key={interest}
+                          variant="outline"
+                          className="cursor-pointer hover:bg-primary-50"
+                        >
+                          {interest}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button 
+                    onClick={() => setCurrentScreen('itinerary')}
+                    variant="gradient"
+                    size="lg"
+                    className="w-full"
+                  >
+                    Generate AI Itinerary
+                  </Button>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            {/* AI Chat */}
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+              className="h-[600px]"
+            >
+              <ChatInterface
+                onSendMessage={async (message) => {
+                  try {
+                    const response = await sendChatMessage({ message });
+                    return response;
+                  } catch (error) {
+                    console.error('Error:', error);
+                    return "Sorry, I encountered an error. Please try again.";
+                  }
+                }}
+              />
+            </motion.div>
           </div>
         </div>
-      </div>
+      </motion.div>
     );
   };
 
   const ItineraryView = () => (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <motion.div
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      variants={pageVariants}
+      className="min-h-screen bg-neutral-50 py-8"
+    >
       <div className="max-w-6xl mx-auto px-4">
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Tokyo Adventure</h1>
-            <p className="text-gray-600">March 15-22, 2024 • 2 travelers</p>
+            <h1 className="text-3xl font-bold text-neutral-900">Tokyo Adventure</h1>
+            <p className="text-neutral-600">March 15-22, 2024 • 2 travelers</p>
           </div>
-          <div className="flex space-x-3">
-            <button className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              <Share className="h-4 w-4" />
-              <span>Share</span>
-            </button>
-            <button className="flex items-center space-x-2 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              <Download className="h-4 w-4" />
-              <span>Export</span>
-            </button>
-            <button className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-              <Heart className="h-4 w-4" />
-              <span>Save</span>
-            </button>
+          <div className="flex gap-3">
+            <Button variant="outline" size="sm">
+              <Share className="w-4 h-4 mr-2" />
+              Share
+            </Button>
+            <Button variant="outline" size="sm">
+              <Download className="w-4 h-4 mr-2" />
+              Export
+            </Button>
+            <Button variant="primary" size="sm">
+              <Heart className="w-4 h-4 mr-2" />
+              Save
+            </Button>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-xl font-semibold mb-4">Day 1 - March 15</h2>
-              <div className="space-y-4">
-                {itinerary.map(item => (
-                  <div key={item.id} className="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-                    <div className="text-sm font-medium text-blue-600 min-w-[60px]">{item.time}</div>
+            {/* Day 1 */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Day 1 - March 15</CardTitle>
+                <CardDescription>Arrival and Exploration</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { time: '08:00', title: 'Flight to Tokyo', location: 'JFK Airport', icon: '✈️' },
+                  { time: '14:30', title: 'Hotel Check-in', location: 'Shibuya District', icon: '🏨' },
+                  { time: '18:00', title: 'Ramen Dinner', location: 'Ichiran Shibuya', icon: '🍜' }
+                ].map((item, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="flex items-start gap-4 p-4 rounded-lg border border-neutral-200 hover:shadow-md transition-all"
+                  >
+                    <div className="text-2xl">{item.icon}</div>
                     <div className="flex-1">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <h3 className="font-semibold text-gray-900">{item.title}</h3>
-                        {item.type === 'flight' && <Plane className="h-4 w-4 text-blue-600" />}
-                        {item.type === 'hotel' && <MapPin className="h-4 w-4 text-green-600" />}
-                        {item.type === 'restaurant' && <Star className="h-4 w-4 text-orange-600" />}
+                      <div className="flex items-center justify-between mb-1">
+                        <h4 className="font-semibold text-neutral-900">{item.title}</h4>
+                        <span className="text-sm text-primary-600 font-medium">{item.time}</span>
                       </div>
-                      <p className="text-gray-600 text-sm mb-2">{item.location}</p>
-                      {item.bookingLink && (
-                        <button className="flex items-center space-x-1 text-blue-600 hover:text-blue-700 text-sm font-medium">
-                          <ExternalLink className="h-4 w-4" />
-                          <span>Book Now</span>
-                        </button>
-                      )}
+                      <p className="text-sm text-neutral-600">{item.location}</p>
                     </div>
-                  </div>
+                    <Button variant="ghost" size="sm">
+                      <ExternalLink className="w-4 h-4" />
+                    </Button>
+                  </motion.div>
                 ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h2 className="text-xl font-semibold mb-4">Day 2 - March 16</h2>
-              <div className="space-y-4">
-                <div className="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg">
-                  <div className="text-sm font-medium text-blue-600 min-w-[60px]">09:00</div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">Senso-ji Temple Visit</h3>
-                    <p className="text-gray-600 text-sm">Asakusa District</p>
-                  </div>
-                </div>
-                <div className="flex items-start space-x-4 p-4 border border-gray-200 rounded-lg">
-                  <div className="text-sm font-medium text-blue-600 min-w-[60px]">12:00</div>
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900 mb-1">Sushi Lunch</h3>
-                    <p className="text-gray-600 text-sm">Tsukiji Outer Market</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
           </div>
 
+          {/* Sidebar */}
           <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">Trip Overview</h3>
-              <div className="space-y-3">
+            <Card>
+              <CardHeader>
+                <CardTitle>Trip Overview</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Duration</span>
+                  <span className="text-neutral-600">Duration</span>
                   <span className="font-medium">7 days</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Travelers</span>
+                  <span className="text-neutral-600">Travelers</span>
                   <span className="font-medium">2 people</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Budget</span>
+                  <span className="text-neutral-600">Budget</span>
                   <span className="font-medium">$2,400</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Activities</span>
+                  <span className="text-neutral-600">Activities</span>
                   <span className="font-medium">12 planned</span>
                 </div>
-              </div>
-            </div>
+              </CardContent>
+            </Card>
 
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">Map View</h3>
-              <div className="bg-gray-200 rounded-lg h-48 flex items-center justify-center">
-                <Map className="h-8 w-8 text-gray-400" />
-              </div>
-              <button className="w-full mt-4 border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-lg transition-colors">
-                View Full Map
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">Quick Actions</h3>
-              <div className="space-y-3">
-                <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg transition-colors">
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <Button variant="primary" size="sm" className="w-full">
                   Book All Activities
-                </button>
-                <button className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-lg transition-colors">
+                </Button>
+                <Button variant="outline" size="sm" className="w-full">
                   Modify Itinerary
-                </button>
-                <button className="w-full border border-gray-300 hover:bg-gray-50 text-gray-700 py-2 px-4 rounded-lg transition-colors">
+                </Button>
+                <Button variant="outline" size="sm" className="w-full">
                   Add to Calendar
-                </button>
-              </div>
-            </div>
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </div>
-    </div>
-  );
-
-  const DestinationGuide = () => (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-6xl mx-auto px-4">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Destination Guide</h1>
-          <div className="flex space-x-4">
-            <input
-              type="text"
-              placeholder="Search destinations..."
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-            <button className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg transition-colors">
-              <Search className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="lg:col-span-2">
-            <div className="bg-white rounded-xl shadow-md overflow-hidden mb-6">
-              <img 
-                src="https://images.pexels.com/photos/2506923/pexels-photo-2506923.jpeg?auto=compress&cs=tinysrgb&w=800" 
-                alt="Tokyo skyline"
-                className="w-full h-64 object-cover"
-              />
-              <div className="p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">Tokyo, Japan</h2>
-                <p className="text-gray-600 mb-4">Experience the perfect blend of traditional culture and modern innovation in Japan's bustling capital.</p>
-                
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Best Time to Visit</h4>
-                    <p className="text-sm text-gray-600">March-May, September-November</p>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Average Budget</h4>
-                    <p className="text-sm text-gray-600">$150-300 per day</p>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Language</h4>
-                    <p className="text-sm text-gray-600">Japanese</p>
-                  </div>
-                  <div>
-                    <h4 className="font-semibold text-gray-900 mb-2">Currency</h4>
-                    <p className="text-sm text-gray-600">Japanese Yen (¥)</p>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => setCurrentScreen('planning')}
-                  className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors"
-                >
-                  Plan Trip to Tokyo
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-xl font-semibold mb-4">Top Attractions</h3>
-              <div className="space-y-4">
-                {[
-                  { name: 'Senso-ji Temple', type: 'Cultural', rating: 4.8 },
-                  { name: 'Tokyo Skytree', type: 'Landmark', rating: 4.7 },
-                  { name: 'Shibuya Crossing', type: 'Experience', rating: 4.6 },
-                  { name: 'Meiji Shrine', type: 'Cultural', rating: 4.5 }
-                ].map(attraction => (
-                  <div key={attraction.name} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow">
-                    <div>
-                      <h4 className="font-semibold text-gray-900">{attraction.name}</h4>
-                      <p className="text-sm text-gray-600">{attraction.type}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="flex items-center space-x-1">
-                        <Star className="h-4 w-4 text-yellow-400 fill-current" />
-                        <span className="text-sm font-medium">{attraction.rating}</span>
-                      </div>
-                      <button className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                        Add to Trip
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-6">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">Popular Destinations</h3>
-              <div className="space-y-3">
-                {[
-                  { name: 'Paris, France', image: 'https://images.pexels.com/photos/338515/pexels-photo-338515.jpeg?auto=compress&cs=tinysrgb&w=200' },
-                  { name: 'New York, USA', image: 'https://images.pexels.com/photos/466685/pexels-photo-466685.jpeg?auto=compress&cs=tinysrgb&w=200' },
-                  { name: 'Bali, Indonesia', image: 'https://images.pexels.com/photos/2166559/pexels-photo-2166559.jpeg?auto=compress&cs=tinysrgb&w=200' }
-                ].map(dest => (
-                  <div key={dest.name} className="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
-                    <img src={dest.image} alt={dest.name} className="w-12 h-12 rounded-lg object-cover" />
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{dest.name}</h4>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-gray-400" />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold mb-4">Travel Tips</h3>
-              <div className="space-y-3">
-                <div className="p-3 bg-blue-50 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-1">Transportation</h4>
-                  <p className="text-sm text-blue-700">Get a JR Pass for unlimited train travel</p>
-                </div>
-                <div className="p-3 bg-green-50 rounded-lg">
-                  <h4 className="font-medium text-green-900 mb-1">Cultural</h4>
-                  <p className="text-sm text-green-700">Learn basic Japanese phrases</p>
-                </div>
-                <div className="p-3 bg-orange-50 rounded-lg">
-                  <h4 className="font-medium text-orange-900 mb-1">Money</h4>
-                  <p className="text-sm text-orange-700">Cash is still widely used</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-
-  const UserProfile = () => (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Profile & Settings</h1>
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="text-center mb-6">
-              <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                {user?.imageUrl ? (
-                  <img src={user.imageUrl} alt={user.fullName} className="w-24 h-24 rounded-full object-cover" />
-                ) : (
-                  <User className="h-12 w-12 text-blue-600" />
-                )}
-              </div>
-              <h2 className="text-xl font-semibold text-gray-900">{user?.fullName || 'User'}</h2>
-              <p className="text-gray-600">{user?.emailAddresses[0]?.emailAddress}</p>
-            </div>
-
-            <div className="space-y-3">
-              <button className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-3">
-                <User className="h-5 w-5 text-gray-400" />
-                <span>Edit Profile</span>
-              </button>
-              <button className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-3">
-                <Bell className="h-5 w-5 text-gray-400" />
-                <span>Notifications</span>
-              </button>
-              <button className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-3">
-                <CreditCard className="h-5 w-5 text-gray-400" />
-                <span>Payment Methods</span>
-              </button>
-              <button className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-50 transition-colors flex items-center space-x-3">
-                <Settings className="h-5 w-5 text-gray-400" />
-                <span>Account Settings</span>
-              </button>
-              <button 
-                onClick={() => signOut()}
-                className="w-full text-left px-4 py-3 rounded-lg hover:bg-red-50 transition-colors flex items-center space-x-3 text-red-600"
-              >
-                <LogOut className="h-5 w-5" />
-                <span>Sign Out</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-xl font-semibold mb-4">Travel Preferences</h3>
-              
-              <div className="space-y-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Trip Types</label>
-                  <div className="flex flex-wrap gap-2">
-                    {['Adventure', 'Culture', 'Relaxation', 'Business', 'Food & Wine'].map(type => (
-                      <button key={type} className="px-3 py-2 bg-blue-100 text-blue-800 text-sm rounded-full">
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Budget Range</label>
-                  <select className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-                    <option>Mid-range ($100-200/day)</option>
-                    <option>Budget ($50-100/day)</option>
-                    <option>Luxury ($200+/day)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Accommodation Type</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {['Hotels', 'Hostels', 'Apartments', 'Resorts'].map(type => (
-                      <button key={type} className="p-3 border border-gray-300 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-colors text-left">
-                        {type}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <button className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg transition-colors">
-                Save Preferences
-              </button>
-            </div>
-
-            <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-xl font-semibold mb-4">Notification Settings</h3>
-              
-              <div className="space-y-4">
-                {[
-                  { title: 'Trip Updates', description: 'Get notified about changes to your itinerary' },
-                  { title: 'Booking Confirmations', description: 'Receive confirmations for reservations' },
-                  { title: 'Deal Alerts', description: 'Special offers for your favorite destinations' },
-                  { title: 'Travel Tips', description: 'Helpful tips and recommendations' }
-                ].map(setting => (
-                  <div key={setting.title} className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                    <div>
-                      <h4 className="font-medium text-gray-900">{setting.title}</h4>
-                      <p className="text-sm text-gray-600">{setting.description}</p>
-                    </div>
-                    <div className="flex items-center">
-                      <input type="checkbox" className="h-5 w-5 text-blue-600 rounded" defaultChecked />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
+    </motion.div>
   );
 
   const renderCurrentScreen = () => {
@@ -907,8 +656,6 @@ function App() {
       case 'dashboard': return <Dashboard />;
       case 'planning': return <PlanningInterface />;
       case 'itinerary': return <ItineraryView />;
-      case 'guide': return <DestinationGuide />;
-      case 'profile': return <UserProfile />;
       case 'signin': return <SignInPage />;
       case 'signup': return <SignUpPage />;
       default: return <Homepage />;
@@ -919,8 +666,59 @@ function App() {
     <AuthWrapper>
       <ConvexDebug />
       <div className="min-h-screen bg-white">
-        <NavBar />
-        {renderCurrentScreen()}
+        <NavBar
+          currentScreen={currentScreen}
+          onNavigate={(screen) => {
+            // Check if the screen requires authentication
+            if ((screen === 'dashboard' || screen === 'guide') && !isSignedIn) {
+              handleAuthenticatedAction(screen);
+            } else {
+              setCurrentScreen(screen);
+            }
+          }}
+          rightContent={
+            <>
+              <SignedIn>
+                <UserButton 
+                  afterSignOutUrl="/"
+                  appearance={{
+                    elements: {
+                      avatarBox: "w-10 h-10"
+                    }
+                  }}
+                />
+              </SignedIn>
+              <SignedOut>
+                <Button 
+                  onClick={() => setCurrentScreen('signin')}
+                  variant="ghost"
+                  size="sm"
+                >
+                  Sign In
+                </Button>
+                <Button 
+                  onClick={() => setCurrentScreen('signup')}
+                  variant="primary"
+                  size="sm"
+                >
+                  Sign Up
+                </Button>
+              </SignedOut>
+            </>
+          }
+        />
+        
+        <AnimatePresence mode="wait">
+          {renderCurrentScreen()}
+        </AnimatePresence>
+        
+        {/* Toast notification */}
+        {showToast && (
+          <Toast
+            message="Please sign in to access this feature"
+            onClose={() => setShowToast(false)}
+          />
+        )}
       </div>
     </AuthWrapper>
   );
