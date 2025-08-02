@@ -66,6 +66,7 @@ TravelAI is an intelligent travel planning platform that helps users create pers
 - **Convex** - Real-time database and serverless functions
 - **Clerk** - Authentication service
 - **Vercel** - Deployment platform
+- **Docker** - Containerization for deployment
 
 ## Getting Started
 
