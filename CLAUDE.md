@@ -1,215 +1,344 @@
 # CLAUDE.md
 
-This file provides comprehensive guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
-TravelAI - A full-stack AI-powered travel planning platform built with modern web technologies:
-- **Frontend**: React 18 + Vite + Tailwind CSS
-- **Backend**: FastAPI + Python 3.8+
-- **Database**: Convex (real-time, serverless)
-- **Authentication**: Clerk (Google OAuth + Email/Password)
-- **AI Integration**: Google Gemini API
+TravelAI - A full-stack AI-powered travel planning platform with React frontend and FastAPI backend, deployed on Vercel.
 
-## Development Commands
+## Development Workflow
 
-### Frontend (React + Vite)
+### Quick Start
+```bash
+# Run both frontend and backend together (recommended)
+./run.sh both
+
+# Or run separately:
+./run.sh frontend  # React on port 5173
+./run.sh backend   # FastAPI on port 8000
+
+# Convex (in separate terminal)
+cd frontend && npx convex dev
+```
+
+### Development Commands
+
+#### Frontend (React + Vite)
 ```bash
 cd frontend
 npm install        # Install dependencies
 npm run dev       # Start dev server (port 5173)
 npm run build     # Build for production
 npm run lint      # Run ESLint
-npm run preview   # Preview production build
 ```
 
-### Backend (FastAPI + Python)
+#### Backend (FastAPI + Python)
 ```bash
 cd backend
 python3 -m venv venv              # Create virtual environment
 source venv/bin/activate          # Activate venv (macOS/Linux)
-# On Windows: venv\Scripts\activate
 pip install -r requirements.txt   # Install dependencies
 fastapi dev src/api.py           # Start dev server (port 8000)
-fastapi run src/main.py          # Production server
 ```
 
-### Convex Database
-```bash
-cd frontend
-npx convex dev    # Run development server
-npx convex deploy # Deploy to production
-```
+## Architecture - Smart Hybrid Approach
 
-### Full Stack Development
-```bash
-./run.sh both      # Run frontend and backend together
-./run.sh frontend  # Run only frontend
-./run.sh backend   # Run only backend
-```
+### Overview
+This project uses a smart hybrid architecture optimized for MVP development while maintaining security and real-time features:
 
-## Architecture
+- **Read Operations**: Frontend → Convex (direct)
+  - Real-time updates via Convex subscriptions
+  - Optimal performance for data fetching
+  - Automatic caching and synchronization
+
+- **Write Operations**: Frontend → Backend → Convex
+  - Server-side validation and business logic
+  - Secure handling of sensitive operations
+  - Audit trail capabilities
+
+- **External APIs**: Frontend → Backend → (Gemini, Stripe, etc.)
+  - API keys stay secure on backend
+  - Rate limiting and error handling
+  - Response caching when appropriate
+
+### Benefits of This Approach
+1. **Real-time where it matters**: Users see instant updates when data changes
+2. **Security for writes**: All mutations go through backend validation
+3. **Minimal complexity**: Leverages Convex's strengths while maintaining control
+4. **Easy to evolve**: Can gradually move more operations to backend as needed
 
 ### Project Structure
 ```
 fantastic-spork/
-├── frontend/                    # React frontend application
+├── frontend/                    # React application
+│   ├── src/                    # Source code
+│   │   ├── components/         # Reusable components
+│   │   ├── App.jsx            # Main app with routing
+│   │   └── main.jsx           # Entry point with providers
+│   ├── convex/                # Convex functions
+│   │   ├── schema.ts          # Database schema
+│   │   ├── users.ts           # User queries/mutations
+│   │   └── trips.ts           # Trip queries/mutations
+│   └── package.json
+├── backend/                   # FastAPI application
 │   ├── src/
-│   │   ├── components/         # Reusable React components
-│   │   │   ├── AuthWrapper.jsx # Authentication wrapper
-│   │   │   ├── SignInPage.jsx  # Clerk sign-in integration
-│   │   │   ├── SignUpPage.jsx  # Clerk sign-up integration
-│   │   │   ├── TripForm.jsx    # Trip creation form
-│   │   │   ├── ConvexDebug.jsx # Convex debugging component
-│   │   │   └── [other components]
-│   │   ├── pages/              # Page components
-│   │   │   ├── Home.jsx        # Landing page
-│   │   │   ├── Dashboard.jsx   # User dashboard
-│   │   │   ├── Itinerary.jsx   # Trip itinerary view
-│   │   │   └── [other pages]
-│   │   ├── App.jsx             # Main app component with routing
-│   │   ├── main.jsx            # Application entry point
-│   │   └── index.css           # Global styles
-│   ├── convex/                 # Convex backend functions
-│   │   ├── _generated/         # Auto-generated Convex files
-│   │   ├── schema.ts           # Database schema definitions
-│   │   ├── users.ts            # User management functions
-│   │   ├── trips.ts            # Trip CRUD operations
-│   │   ├── chats.ts            # AI chat history
-│   │   └── auth.config.js      # Clerk auth configuration
-│   ├── public/                 # Static assets
-│   ├── package.json
-│   ├── vite.config.js
-│   └── .env.local              # Frontend environment variables
-├── backend/                    # FastAPI backend application
-│   ├── src/
-│   │   ├── api.py             # FastAPI routes and endpoints
-│   │   ├── main.py            # Server configuration
-│   │   └── models/            # Pydantic models (if any)
-│   ├── requirements.txt        # Python dependencies
-│   └── .env                   # Backend environment variables
-├── api/                       # Vercel serverless functions
-│   └── index.py              # Vercel function entry point
-├── tests/                     # Playwright E2E tests
-│   ├── playwright.config.ts
-│   └── e2e/
-├── .mcp.json                  # MCP server configuration
-├── claude_desktop_config.json # Claude Desktop MCP config
-├── run.sh                     # Development utility script
-├── Dockerfile                 # Docker build configuration
-├── vercel.json               # Vercel deployment settings
-├── DEPLOYMENT.md             # Deployment documentation
-├── CLAUDE.md                 # This file
-└── README.md                 # Project documentation
+│   │   ├── api.py            # API routes
+│   │   └── main.py           # Production server
+│   └── requirements.txt
+├── api/                      # Vercel serverless function
+│   └── index.py             # Entry point for Vercel
+├── vercel.json              # Vercel configuration
+└── run.sh                   # Development helper
 ```
 
-### Technology Stack Details
+### Vercel Configuration
+The `vercel.json` file configures:
+- Frontend build process
+- Backend as serverless function
+- Routing rules for API and SPA
 
-#### Frontend Technologies
-- **React 18**: Component-based UI with hooks
-- **Vite**: Lightning-fast build tool with HMR
-- **Tailwind CSS**: Utility-first CSS framework
-- **Lucide React**: Modern icon library
-- **React Router**: Client-side routing
-- **Clerk React**: Authentication components
-- **Convex React**: Real-time data hooks
+## Development Guidelines
 
-#### Backend Technologies
-- **FastAPI**: Modern async Python web framework
-- **Pydantic**: Data validation with type hints
-- **CORS Middleware**: Cross-origin request handling
-- **Google Generative AI**: Gemini API integration
-- **Convex Python SDK**: Database operations
-- **python-dotenv**: Environment variable management
+### Pattern 1: Reading Data (Direct from Convex)
+Use Convex queries for all read operations to get real-time updates:
 
-#### Database (Convex)
-- **Real-time sync**: Automatic data synchronization
-- **Serverless functions**: Backend logic in TypeScript
-- **Type-safe queries**: End-to-end type safety
-- **Built-in auth**: Integration with Clerk
+```jsx
+// frontend/src/components/TripList.jsx
+import { useQuery } from 'convex/react';
+import { api } from '../convex/_generated/api';
 
-### Key API Endpoints
+export function TripList() {
+  // Direct query to Convex - real-time updates!
+  const trips = useQuery(api.trips.getUserTrips);
+  
+  if (!trips) return <div>Loading...</div>;
+  
+  return (
+    <div>
+      {trips.map(trip => (
+        <TripCard key={trip._id} trip={trip} />
+      ))}
+    </div>
+  );
+}
+```
 
-#### Backend API (FastAPI)
+### Pattern 2: Writing Data (Through Backend API)
+Use backend API for all write operations to ensure validation:
+
+```jsx
+// frontend/src/components/CreateTrip.jsx
+import { useState } from 'react';
+
+export function CreateTrip() {
+  const [loading, setLoading] = useState(false);
+  
+  const handleCreateTrip = async (tripData) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/api/trips`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tripData)
+      });
+      
+      if (!response.ok) throw new Error('Failed to create trip');
+      
+      const result = await response.json();
+      // Success! Convex will automatically update any queries
+    } catch (error) {
+      console.error('Error creating trip:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  return (
+    <form onSubmit={handleCreateTrip}>
+      {/* Form fields */}
+    </form>
+  );
+}
+```
+
+### Pattern 3: External API Calls (Through Backend)
+Always route external API calls through the backend:
+
+```jsx
+// frontend/src/components/ChatInterface.jsx
+export function ChatInterface() {
+  const sendMessage = async (message) => {
+    const response = await fetch(`${API_BASE}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message })
+    });
+    
+    const data = await response.json();
+    return data.response;
+  };
+}
+```
+
+### Backend API Implementation
+When creating backend endpoints that interact with Convex:
+
 ```python
-# Health check
-GET /hello
-Response: {"message": "Hello from FastAPI"}
+# backend/src/api.py
+from convex import ConvexClient
 
-# AI Chat endpoint
-POST /chat
-Body: {"message": "Plan a trip to Paris"}
-Response: {"response": "AI-generated travel advice..."}
+convex_client = ConvexClient(os.getenv("CONVEX_URL"))
 
-# Store user in Convex
-POST /store-user
-Body: {"userId": "clerk_id", "email": "user@example.com"}
-Response: {"status": "success", "convexId": "..."}
-
-# Environment test
-GET /test-env
-Response: {"gemini_configured": true}
-
-# Static file serving (production)
-GET /{path}
-Serves React build files from public/
+@app.post("/api/trips")
+async def create_trip(request: TripRequest):
+    # 1. Validate request data
+    if not request.destination:
+        raise HTTPException(status_code=400, detail="Destination required")
+    
+    # 2. Apply business logic
+    if request.budget and request.budget < 0:
+        raise HTTPException(status_code=400, detail="Budget must be positive")
+    
+    # 3. Store in Convex via backend
+    try:
+        result = convex_client.mutation(
+            "trips:createFromBackend",
+            {
+                "destination": request.destination,
+                "startDate": request.start_date,
+                "endDate": request.end_date,
+                "budget": request.budget
+            }
+        )
+        return {"status": "success", "trip_id": result}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 ```
 
-#### Convex Functions
-```typescript
-// User management
-users.store({ userId, email, name })
-users.storeFromBackend({ userId, email })
-users.getMyUser()
-users.getUserById({ userId })
+## API Communication Patterns
 
-// Trip management
-trips.create({ title, destination, startDate, endDate })
-trips.getUserTrips()
-trips.getTripById({ tripId })
-trips.updateTrip({ tripId, updates })
-trips.deleteTrip({ tripId })
+### API Helper Utility
+Create a centralized API helper for consistency:
 
-// Chat/AI functions
-chats.sendMessage({ message, tripId })
-chats.getChatHistory({ tripId })
+```javascript
+// frontend/src/utils/api.js
+const API_BASE = import.meta.env.DEV 
+  ? 'http://localhost:8000' 
+  : '';
+
+export async function apiCall(endpoint, options = {}) {
+  const response = await fetch(`${API_BASE}/api/${endpoint}`, {
+    headers: {
+      'Content-Type': 'application/json',
+      ...options.headers,
+    },
+    ...options,
+  });
+  
+  if (!response.ok) {
+    throw new Error(`API Error: ${response.statusText}`);
+  }
+  
+  return response.json();
+}
+
+// Specific API functions
+export const api = {
+  trips: {
+    create: (data) => apiCall('trips', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id, data) => apiCall(`trips/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    delete: (id) => apiCall(`trips/${id}`, { method: 'DELETE' })
+  },
+  chat: {
+    send: (message) => apiCall('chat', { method: 'POST', body: JSON.stringify({ message }) })
+  },
+  user: {
+    store: (data) => apiCall('store-user', { method: 'POST', body: JSON.stringify(data) })
+  }
+};
 ```
 
-### Important Patterns
+## Data Flow Examples
 
-#### API Communication
-- Frontend makes requests to backend at `http://localhost:8000`
-- In production, relative URLs are used (`/api/...`)
-- All API calls should handle errors gracefully
-- Use proper loading states for async operations
-
-#### Authentication Flow
-1. User signs in with Clerk (frontend)
-2. Clerk provides user token and metadata
-3. Frontend calls backend `/store-user` endpoint
-4. Backend stores user in Convex database
-5. User session is maintained by Clerk
-
-#### State Management
-- Local component state for UI interactions
-- Convex for persistent data (trips, users, chats)
-- React Context for global UI state (if needed)
-- URL parameters for shareable state
-
-#### Error Handling
-- Frontend: Try-catch blocks with user-friendly messages
-- Backend: FastAPI exception handlers
-- Convex: Built-in error handling with retry logic
-- Display errors in UI, don't just console.log
-
-#### Environment Variables
-Frontend (.env.local):
+### Example 1: User Views Dashboard
 ```
-VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
-VITE_CONVEX_URL=https://...convex.cloud
+1. Component mounts
+2. useQuery(api.trips.getUserTrips) executes
+3. Convex returns trips in real-time
+4. If another user/tab creates a trip, dashboard updates automatically
 ```
 
-Backend (.env):
+### Example 2: User Creates Trip
+```
+1. User fills form and submits
+2. Frontend calls api.trips.create(data)
+3. Backend validates data
+4. Backend stores in Convex via mutation
+5. All frontend queries automatically update
+```
+
+### Example 3: User Chats with AI
+```
+1. User types message
+2. Frontend calls api.chat.send(message)
+3. Backend calls Gemini API
+4. Backend stores conversation in Convex
+5. Frontend shows response
+```
+
+## Architecture Decision Record
+
+### Why This Hybrid Approach?
+
+**Context**: Building an MVP for a travel planning platform with real-time features.
+
+**Decision**: Use Convex directly for reads, backend API for writes.
+
+**Rationale**:
+1. **Development Speed**: Convex queries are simple and real-time out of the box
+2. **Security**: Backend validates all mutations
+3. **Flexibility**: Can easily move operations to backend later
+4. **Performance**: No unnecessary API calls for reading data
+
+**Consequences**:
+- ✅ Faster MVP development
+- ✅ Real-time features work immediately
+- ✅ Secure write operations
+- ⚠️ Two patterns to learn (but both are simple)
+- ⚠️ Frontend has Convex dependency (acceptable for MVP)
+
+**Future Migration Path**:
+If needed, we can gradually move read operations to backend by:
+1. Creating GET endpoints in backend
+2. Replacing useQuery with API calls
+3. Implementing WebSockets for real-time updates
+
+## Key API Endpoints
+
+### Backend API (FastAPI)
+- `POST /api/chat` - AI chat with Gemini
+- `POST /api/store-user` - Store user in Convex (called by AuthWrapper)
+- `POST /api/trips` - Create a new trip (TODO)
+- `PUT /api/trips/{id}` - Update a trip (TODO)
+- `DELETE /api/trips/{id}` - Delete a trip (TODO)
+- `GET /api/hello` - Health check
+- `GET /api/test-env` - Environment check
+
+### Convex Functions (Frontend Access)
+**Queries (Direct Access)**
+- `users.getMyUser` - Get current user
+- `trips.getUserTrips` - Get user's trips
+- `trips.getTrip` - Get specific trip
+
+**Mutations (Through Backend Only)**
+- `users.storeFromBackend` - Store user data
+- `trips.createFromBackend` - Create trip (TODO)
+- `trips.updateFromBackend` - Update trip (TODO)
+- `trips.deleteFromBackend` - Delete trip (TODO)
+
+## Environment Variables
+
+### Backend (.env)
 ```
 GEMINI_API_KEY=your_gemini_api_key
 CLERK_SECRET_KEY=sk_test_...
@@ -217,310 +346,138 @@ CONVEX_URL=https://...convex.cloud
 CONVEX_DEPLOYMENT=production
 ```
 
-## Development Guidelines
+### Frontend (.env.local)
+```
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+VITE_CONVEX_URL=https://...convex.cloud
+```
 
-### Code Style
-- **Frontend**: ESLint configuration in place
-- **Backend**: Follow PEP 8 for Python code
-- **TypeScript**: Strict mode enabled for Convex
-- **Formatting**: Use Prettier for consistent formatting
+### Vercel (set in dashboard)
+All backend environment variables need to be set in Vercel project settings.
 
-### Component Structure
-```jsx
-// Example React component structure
-import { useState, useEffect } from 'react';
-import { useQuery, useMutation } from 'convex/react';
-import { api } from '../convex/_generated/api';
+## Common Development Tasks
 
-export function ComponentName() {
-  // Hooks first
-  const [state, setState] = useState();
-  const data = useQuery(api.trips.getUserTrips);
-  const createTrip = useMutation(api.trips.create);
-  
-  // Effects
-  useEffect(() => {
-    // Side effects
-  }, [dependencies]);
-  
-  // Handlers
-  const handleSubmit = async () => {
-    await createTrip({ /* data */ });
-  };
-  
-  // Render
-  return (
-    <div className="tailwind-classes">
-      {/* JSX */}
-    </div>
-  );
+### Adding a New Feature
+
+1. **Determine if it's a read or write operation**
+   - Reading data? Use Convex query directly
+   - Writing data? Create backend endpoint first
+   - External API? Always go through backend
+
+2. **For Read Operations**
+   ```jsx
+   const data = useQuery(api.features.getData);
+   ```
+
+3. **For Write Operations**
+   - Create backend endpoint
+   - Add validation and business logic
+   - Call Convex mutation from backend
+   - Use API helper in frontend
+
+### Adding AI Features
+1. Design the prompt in backend
+2. Create endpoint in `backend/src/api.py` using Gemini
+3. Add frontend UI to call the endpoint
+4. Store results in Convex if needed
+
+### Testing API Endpoints
+```bash
+# Test locally
+curl http://localhost:8000/api/hello
+
+# Test with FastAPI docs
+open http://localhost:8000/docs
+```
+
+## Deployment Process
+
+### Deploy to Vercel
+```bash
+# From root directory
+vercel
+
+# Or push to GitHub (if connected)
+git push origin main
+```
+
+### What Happens During Deployment
+1. Vercel runs build commands from `vercel.json`
+2. Frontend is built with Vite
+3. Backend is packaged as serverless function
+4. Routes are configured for API and SPA
+
+## Important Patterns
+
+### Error Handling
+```python
+# Backend
+@app.post("/api/endpoint")
+async def endpoint(request: Request):
+    try:
+        # Validation
+        # Business logic
+        # Convex operation
+        return {"status": "success"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal error")
+```
+
+```javascript
+// Frontend
+try {
+  const data = await apiCall('endpoint', { method: 'POST' });
+  // Handle success
+} catch (error) {
+  // Show user-friendly error
+  console.error('Error:', error);
 }
 ```
 
-### API Route Structure
-```python
-# Example FastAPI route structure
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+### Authentication Flow
+1. User signs in with Clerk
+2. Frontend gets user data
+3. Frontend calls `/api/store-user`
+4. Backend stores in Convex
+5. User can access features
 
-router = APIRouter()
+## Debugging Tips
 
-class RequestModel(BaseModel):
-    field: str
+### Frontend Issues
+- Check browser console
+- Verify API URLs (dev vs prod)
+- Check network tab for API calls
+- Ensure Convex queries have proper auth
 
-@router.post("/endpoint")
-async def endpoint_name(request: RequestModel):
-    try:
-        # Business logic
-        result = process_request(request)
-        return {"status": "success", "data": result}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-```
+### Backend Issues
+- Check terminal running FastAPI
+- Use `/docs` for API testing
+- Add print statements for debugging
+- Verify Convex client initialization
 
-### Database Schema (Convex)
-```typescript
-// Example Convex schema
-import { defineSchema, defineTable } from "convex/server";
-import { v } from "convex/values";
+### Vercel Issues
+- Check function logs in Vercel dashboard
+- Verify environment variables
+- Test build locally with `vercel dev`
 
-export default defineSchema({
-  users: defineTable({
-    userId: v.string(),
-    email: v.string(),
-    name: v.optional(v.string()),
-    createdAt: v.number(),
-  }).index("by_userId", ["userId"]),
-  
-  trips: defineTable({
-    userId: v.string(),
-    title: v.string(),
-    destination: v.string(),
-    startDate: v.string(),
-    endDate: v.string(),
-    budget: v.optional(v.number()),
-    activities: v.array(v.object({
-      day: v.number(),
-      items: v.array(v.string()),
-    })),
-  }).index("by_user", ["userId"]),
-});
-```
-
-## Deployment
-
-### Docker
-```bash
-# Build and run with Docker
-docker build -t travelai .
-docker run -p 8000:8000 --env-file .env travelai
-```
-
-The Dockerfile uses a multi-stage build:
-1. Stage 1: Build React frontend with Node
-2. Stage 2: Set up Python backend and copy built frontend
-
-### Vercel
-```bash
-# Deploy to Vercel
-vercel
-
-# Or with specific environment
-vercel --prod
-```
-
-Configuration in `vercel.json`:
-- Builds frontend and copies to output
-- Sets up Python serverless function
-- Configures routing and rewrites
-- Environment variables set in dashboard
-
-### Environment Setup for Deployment
-1. Set all required environment variables
-2. Ensure Convex deployment is configured
-3. Update CORS settings for production domains
-4. Configure Clerk for production URLs
-
-## Common Tasks
-
-### Adding a New Page
-1. Create component in `frontend/src/pages/`
-2. Add route in `App.jsx`
-3. Update navigation components
-4. Create necessary Convex functions
-5. Add any required API endpoints
-
-### Adding a New API Endpoint
-1. Define route in `backend/src/api.py`
-2. Create Pydantic models if needed
-3. Implement business logic
-4. Add error handling
-5. Update frontend to call new endpoint
-6. Update CORS if necessary
-
-### Adding a New Database Table
-1. Update `frontend/convex/schema.ts`
-2. Create functions in new file (e.g., `frontend/convex/tablename.ts`)
-3. Run `npx convex dev` to generate types
-4. Use in frontend components
-5. Add any backend API integration
-
-### Integrating New AI Features
-1. Design prompt structure
-2. Update `/chat` endpoint or create new endpoint
-3. Handle response parsing
-4. Store in Convex if needed
-5. Create UI components for interaction
-6. Add loading and error states
-
-## Testing
-
-### Unit Tests
-- Frontend: Jest + React Testing Library
-- Backend: pytest + FastAPI test client
-
-### E2E Tests
-```bash
-cd tests
-npm install
-npx playwright test
-```
-
-### Manual Testing Checklist
-- [ ] Authentication flow (sign up, sign in, sign out)
-- [ ] Trip creation and management
-- [ ] AI chat functionality
-- [ ] Real-time updates (open in multiple tabs)
-- [ ] Error handling (network errors, invalid inputs)
-- [ ] Responsive design (mobile, tablet, desktop)
-
-## Debugging
-
-### Frontend Debugging
-- React DevTools for component inspection
-- Network tab for API calls
-- Console for Convex queries/mutations
-- Vite's error overlay for build errors
-
-### Backend Debugging
-- FastAPI's automatic documentation at `/docs`
-- Python debugger (`import pdb; pdb.set_trace()`)
-- Logging with Python's logging module
-- Environment variable verification endpoint
-
-### Convex Debugging
-- Convex dashboard for data inspection
-- Function logs in Convex dashboard
-- `ConvexDebug.jsx` component for testing
-- Real-time data explorer
-
-## Performance Optimization
-
-### Frontend
-- Lazy load routes with React.lazy()
-- Optimize images (WebP, lazy loading)
-- Minimize bundle size (analyze with vite-bundle-visualizer)
-- Use React.memo for expensive components
-
-### Backend
-- Use FastAPI's async endpoints
-- Implement caching for AI responses
-- Optimize database queries
-- Use connection pooling
-
-### Convex
-- Design efficient indexes
-- Paginate large data sets
-- Use reactive queries wisely
-- Batch mutations when possible
-
-## Security Considerations
-
-### Authentication
-- Always verify Clerk tokens
-- Implement proper RBAC
-- Secure API endpoints
-- Validate all user inputs
-
-### API Security
-- Use HTTPS in production
-- Implement rate limiting
-- Validate and sanitize inputs
-- Handle errors without exposing internals
-
-### Environment Variables
-- Never commit `.env` files
-- Use different keys for dev/prod
-- Rotate keys regularly
-- Limit key permissions
-
-## Best Practices
+## Do's and Don'ts
 
 ### Do's
-- Keep components small and focused
-- Use TypeScript for Convex functions
-- Handle loading and error states
-- Write descriptive commit messages
-- Test edge cases
-- Document complex logic
+- ✅ Use Convex queries for all read operations
+- ✅ Use backend API for all write operations
+- ✅ Keep validation logic in backend
+- ✅ Handle errors gracefully in both patterns
+- ✅ Test locally before deploying
+- ✅ Use TypeScript for Convex functions
+- ✅ Document why a feature uses backend vs direct Convex
 
 ### Don'ts
-- Don't store sensitive data in frontend
-- Don't make synchronous API calls
-- Don't ignore TypeScript errors
-- Don't skip error handling
-- Don't hardcode configuration
-- Don't bypass authentication
-
-## MCP Integration
-
-The project includes MCP (Model Context Protocol) servers for enhanced development:
-
-### Available MCP Servers
-1. **Playwright Browser Automation**
-   - Browser control and testing
-   - Screenshot capabilities
-   - Form interaction
-
-2. **Stripe Payment Processing**
-   - Customer management
-   - Product and pricing
-   - Subscription handling
-
-3. **Convex Database**
-   - Direct database access
-   - Function execution
-   - Schema management
-
-### MCP Configuration
-See `.mcp.json` and `claude_desktop_config.json` for setup details.
-
-## Troubleshooting
-
-### Common Issues
-
-1. **CORS Errors**
-   - Check backend CORS configuration
-   - Verify frontend API URLs
-   - Ensure ports match
-
-2. **Authentication Failed**
-   - Verify Clerk keys
-   - Check user storage in Convex
-   - Review auth configuration
-
-3. **Convex Connection Issues**
-   - Verify Convex URL
-   - Check deployment status
-   - Review function implementations
-
-4. **Build Failures**
-   - Clear node_modules and reinstall
-   - Check for TypeScript errors
-   - Verify environment variables
-
-### Getting Help
-- Check error messages carefully
-- Review Convex and Clerk documentation
-- Use debugging tools mentioned above
-- Search for similar issues in forums
+- ❌ Don't call Convex mutations directly from frontend
+- ❌ Don't put business logic in Convex functions
+- ❌ Don't expose API keys in frontend
+- ❌ Don't mix patterns in the same component
+- ❌ Don't skip validation on backend endpoints
+- ❌ Don't create complex Convex actions (use backend instead)
+- ❌ Don't fight the pattern - embrace the hybrid approach
