@@ -461,3 +461,75 @@ async def store_user(request: StoreUserRequest):
             "error": str(e),
             "message": "User storage failed but authentication succeeded"
         }
+
+@app.put("/api/trips/{trip_id}")
+async def update_trip(trip_id: str, request: Request):
+    """Update a trip"""
+    if not convex_client:
+        raise HTTPException(status_code=500, detail="Convex not configured")
+    
+    # Get user from Authorization header
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+    
+    clerk_token = auth_header.replace("Bearer ", "")
+    
+    try:
+        # Verify the Clerk token
+        # In production, you would verify the JWT token here
+        # For now, we'll extract the user ID from the token payload
+        # This is a simplified version - in production use proper JWT verification
+        
+        body = await request.json()
+        
+        # Call Convex mutation to update trip
+        result = convex_client.mutation(
+            "trips:updateFromBackend",
+            {
+                "id": trip_id,
+                "userId": body.get("userId"),  # This should come from verified token
+                **{k: v for k, v in body.items() if k != "userId" and v is not None}
+            }
+        )
+        
+        return {"success": True, "message": "Trip updated successfully"}
+    except Exception as e:
+        print(f"Error updating trip: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/trips/{trip_id}")
+async def delete_trip(trip_id: str, request: Request):
+    """Delete a trip"""
+    if not convex_client:
+        raise HTTPException(status_code=500, detail="Convex not configured")
+    
+    # Get user from Authorization header
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+    
+    clerk_token = auth_header.replace("Bearer ", "")
+    
+    try:
+        # In production, verify the Clerk JWT token here
+        # For now, we expect the userId to be passed in the request
+        body = await request.json()
+        user_id = body.get("userId")
+        
+        if not user_id:
+            raise HTTPException(status_code=400, detail="User ID required")
+        
+        # Call Convex mutation to delete trip
+        result = convex_client.mutation(
+            "trips:deleteFromBackend",
+            {
+                "id": trip_id,
+                "userId": user_id
+            }
+        )
+        
+        return {"success": True, "message": "Trip deleted successfully"}
+    except Exception as e:
+        print(f"Error deleting trip: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))

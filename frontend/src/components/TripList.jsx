@@ -1,11 +1,63 @@
-import { useQuery } from "convex/react";
+import { useState, useEffect, useRef } from 'react';
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { Card, CardHeader, CardTitle, CardContent, Badge } from './ui';
-import { MapPin, Calendar, Users, ExternalLink } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from './ui';
+import { MapPin, Calendar, Users, ExternalLink, Edit, Trash2, Eye, MoreVertical } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 
 export function TripList() {
+  const navigate = useNavigate();
+  const { userId } = useCurrentUser();
   const trips = useQuery(api.trips.getUserTrips);
+  const deleteTrip = useMutation(api.trips.deleteTrip);
+  const [deletingId, setDeletingId] = useState(null);
+  const [showActionsFor, setShowActionsFor] = useState(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showActionsFor && !event.target.closest('.actions-menu')) {
+        setShowActionsFor(null);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showActionsFor]);
+
+  const handleDelete = async (tripId) => {
+    if (window.confirm('Are you sure you want to delete this trip?')) {
+      setDeletingId(tripId);
+      try {
+        await deleteTrip({ id: tripId });
+      } catch (error) {
+        console.error('Error deleting trip:', error);
+        alert('Failed to delete trip. Please try again.');
+      } finally {
+        setDeletingId(null);
+        setShowActionsFor(null);
+      }
+    }
+  };
+
+  const handleOpen = (trip) => {
+    // Store trip data and navigate to itinerary view
+    localStorage.setItem('tripData', JSON.stringify({
+      destination: trip.destination,
+      dates: `${trip.startDate} to ${trip.endDate}`,
+      travelers: trip.travelers,
+      departureCities: trip.departureCities || []
+    }));
+    localStorage.setItem('savedItinerary', JSON.stringify(trip.itineraryData));
+    navigate('/itinerary');
+  };
+
+  const handleEdit = (trip) => {
+    // Navigate to landing page with pre-filled form
+    navigate('/', { state: { editingTrip: trip } });
+  };
 
   if (!trips) {
     return (
@@ -38,12 +90,51 @@ export function TripList() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: index * 0.1 }}
           >
-            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="w-5 h-5 text-blue-600" />
-                  {trip.destination}
-                </CardTitle>
+            <Card className="hover:shadow-lg transition-shadow relative group">
+              <CardHeader className="pb-3">
+                <div className="flex justify-between items-start">
+                  <CardTitle className="flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-blue-600" />
+                    {trip.destination}
+                  </CardTitle>
+                  
+                  {/* Actions Menu */}
+                  <div className="relative actions-menu">
+                    <button
+                      onClick={() => setShowActionsFor(showActionsFor === trip._id ? null : trip._id)}
+                      className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <MoreVertical className="w-4 h-4 text-gray-600" />
+                    </button>
+                    
+                    {showActionsFor === trip._id && (
+                      <div className="absolute right-0 mt-1 w-40 bg-white rounded-lg shadow-lg border z-10">
+                        <button
+                          onClick={() => handleOpen(trip)}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <Eye className="w-4 h-4" />
+                          View Itinerary
+                        </button>
+                        <button
+                          onClick={() => handleEdit(trip)}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex items-center gap-2"
+                        >
+                          <Edit className="w-4 h-4" />
+                          Edit Trip
+                        </button>
+                        <button
+                          onClick={() => handleDelete(trip._id)}
+                          disabled={deletingId === trip._id}
+                          className="w-full px-4 py-2 text-left text-sm hover:bg-red-50 text-red-600 flex items-center gap-2 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          {deletingId === trip._id ? 'Deleting...' : 'Delete Trip'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               
               <CardContent className="space-y-3">

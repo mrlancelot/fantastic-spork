@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
   MapPin, 
@@ -17,8 +17,10 @@ import { SignInButton, SignOutButton, SignUpButton } from '@clerk/clerk-react';
 
 const Landing = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { isSignedIn, userName, user } = useCurrentUser();
   const [showTripForm, setShowTripForm] = useState(false);
+  const [editingTripId, setEditingTripId] = useState(null);
   const [formData, setFormData] = useState({
     destination: 'Buenos Aires and Patagonia',
     dates: 'November 2024',
@@ -32,6 +34,24 @@ const Landing = () => {
     'LA',
     'Shanghai'
   ];
+
+  // Handle editing trip from navigation state
+  useEffect(() => {
+    if (location.state?.editingTrip) {
+      const trip = location.state.editingTrip;
+      setEditingTripId(trip._id);
+      setFormData({
+        destination: trip.destination,
+        dates: `${trip.startDate} to ${trip.endDate}`,
+        travelers: trip.travelers,
+        departureCities: trip.departureCities || []
+      });
+      setShowTripForm(true);
+      
+      // Clear the state to prevent re-loading on refresh
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.state, navigate, location.pathname]);
 
   const handleDepartureCityChange = (city) => {
     setFormData(prev => ({
@@ -144,6 +164,9 @@ const Landing = () => {
           >
             <Card className="bg-white shadow-2xl border-0">
               <CardContent className="p-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6 text-center">
+                  {editingTripId ? 'Edit Your Trip' : 'Plan Your Perfect Group Adventure'}
+                </h2>
                 <form onSubmit={handleSubmit} className="space-y-8">
                   {/* Destination */}
                   <div>
@@ -222,19 +245,42 @@ const Landing = () => {
                   </div>
 
                   {/* Submit Button */}
-                  <motion.div
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <Button
-                      type="submit"
-                      size="lg"
-                      className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-4 px-8 rounded-xl shadow-lg transition-all duration-200"
+                  <div className="flex gap-4">
+                    {editingTripId && (
+                      <Button
+                        type="button"
+                        size="lg"
+                        variant="outline"
+                        onClick={() => {
+                          setEditingTripId(null);
+                          setShowTripForm(false);
+                          setFormData({
+                            destination: 'Buenos Aires and Patagonia',
+                            dates: 'November 2024',
+                            travelers: 6,
+                            departureCities: ['San Francisco', 'NYC']
+                          });
+                        }}
+                        className="flex-1 py-4 px-8 rounded-xl"
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <motion.div
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      className="flex-1"
                     >
-                      Generate My Itinerary
-                      <ArrowRight className="w-5 h-5 ml-2" />
-                    </Button>
-                  </motion.div>
+                      <Button
+                        type="submit"
+                        size="lg"
+                        className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold py-4 px-8 rounded-xl shadow-lg transition-all duration-200"
+                      >
+                        {editingTripId ? 'Update Trip' : 'Generate My Itinerary'}
+                        <ArrowRight className="w-5 h-5 ml-2" />
+                      </Button>
+                    </motion.div>
+                  </div>
                 </form>
               </CardContent>
             </Card>

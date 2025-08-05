@@ -44,8 +44,18 @@ const Itinerary = () => {
     const parsedTripData = JSON.parse(storedTripData);
     setTripData(parsedTripData);
 
-    // Generate itinerary
-    generateItinerary(parsedTripData);
+    // Check if there's a saved itinerary
+    const savedItinerary = localStorage.getItem('savedItinerary');
+    if (savedItinerary) {
+      const itineraryData = JSON.parse(savedItinerary);
+      setItinerary(itineraryData);
+      setLoading(false);
+      // Clean up
+      localStorage.removeItem('savedItinerary');
+    } else {
+      // Generate new itinerary
+      generateItinerary(parsedTripData);
+    }
   }, [navigate]);
 
   const generateItinerary = async (data) => {

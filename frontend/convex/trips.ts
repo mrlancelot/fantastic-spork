@@ -230,6 +230,83 @@ export const createWithFullItinerary = mutation({
   },
 });
 
+export const updateFromBackend = mutation({
+  args: {
+    id: v.id("trips"),
+    destination: v.optional(v.string()),
+    startDate: v.optional(v.string()),
+    endDate: v.optional(v.string()),
+    travelers: v.optional(v.number()),
+    departureCities: v.optional(v.array(v.string())),
+    tripType: v.optional(v.string()),
+    itineraryData: v.optional(v.any()),
+    notes: v.optional(v.string()),
+    userId: v.string(), // Clerk user ID
+  },
+  handler: async (ctx, args) => {
+    // Find user by Clerk ID
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.userId))
+      .unique();
+    
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const trip = await ctx.db.get(args.id);
+    if (!trip) {
+      throw new Error("Trip not found");
+    }
+
+    // Verify the user owns this trip
+    if (trip.userId !== user._id) {
+      throw new Error("Unauthorized");
+    }
+
+    const { id, userId: _, ...updates } = args;
+    await ctx.db.patch(args.id, {
+      ...updates,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+export const deleteFromBackend = mutation({
+  args: {
+    id: v.id("trips"),
+    userId: v.string(), // Clerk user ID
+  },
+  handler: async (ctx, args) => {
+    // Find user by Clerk ID
+    const user = await ctx.db
+      .query("users")
+      .withIndex("by_clerk_id", (q) => q.eq("clerkId", args.userId))
+      .unique();
+    
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const trip = await ctx.db.get(args.id);
+    if (!trip) {
+      throw new Error("Trip not found");
+    }
+
+    // Verify the user owns this trip
+    if (trip.userId !== user._id) {
+      throw new Error("Unauthorized");
+    }
+
+    // Delete the trip
+    await ctx.db.delete(args.id);
+
+    return { success: true };
+  },
+});
+
 export const createFromBackend = mutation({
   args: {
     destination: v.string(),
