@@ -3,10 +3,13 @@ This is only if you are deploying on Vercel.
 If you are not deploying on Vercel, you can delete this file.
 """
 
-from fastapi import FastAPI
+import sys
+import os
 
-from api import app as api
+# Add backend src to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend', 'src'))
 
-# This ASGI app is used by Vercel as a Serverless Function
-app = FastAPI()
-app.mount("/api", api)
+from api import app
+
+# Export the FastAPI app for Vercel
+# Note: We don't need to mount it at /api since Vercel's rewrites handle that
