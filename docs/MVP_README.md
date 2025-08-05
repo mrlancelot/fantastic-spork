@@ -86,9 +86,28 @@ A 2-page React frontend for AI-powered travel planning with local insights.
 
 ### Backend (FastAPI - Port 8000)
 
-#### Generate Itinerary
+#### Health Check
 ```http
-POST http://localhost:8000/api/generate-itinerary
+GET /api/health
+```
+Returns service status
+
+#### Store User (from Clerk Auth)
+```http
+POST /api/store-user
+Content-Type: application/json
+
+{
+  "clerk_user_id": "user_xxxx",
+  "email": "user@example.com",
+  "name": "John Doe",
+  "image_url": "https://..."
+}
+```
+
+#### Generate Itinerary with Booking Links
+```http
+POST /api/generate-itinerary
 Content-Type: application/json
 
 {
@@ -100,41 +119,144 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
+**Enhanced Response with Booking Options:**
 ```json
 {
   "itinerary": {
-    "flights": [{"from": "...", "airline": "...", "price_range": "...", "source_url": "..."}],
-    "accommodations": [{"name": "...", "neighborhood": "...", "price_per_night": "...", "source_url": "..."}],
-    "food": [{"name": "...", "cuisine": "...", "price_range": "...", "source_url": "..."}],
-    "activities": [{"name": "...", "type": "...", "source_url": "..."}],
-    "schedule": {"day1": ["...", "...", "..."], "day2": ["...", "...", "..."]},
-    "sources": ["url1", "url2", "url3"]
+    "flights": [{
+      "from": "San Francisco",
+      "airline": "United Airlines",
+      "booking_options": [
+        {
+          "platform": "Google Flights",
+          "url": "https://www.google.com/flights/...",
+          "price_range": "$800-1200",
+          "notes": "Direct booking available"
+        },
+        {
+          "platform": "Airline Direct",
+          "url": "https://united.com/booking",
+          "price_range": "$750-1150",
+          "notes": "Official airline site"
+        }
+      ]
+    }],
+    "accommodations": [{
+      "name": "Hotel Madero",
+      "neighborhood": "Puerto Madero",
+      "bachelor_friendly": true,
+      "booking_options": [
+        {
+          "platform": "Booking.com",
+          "url": "https://booking.com/hotel/...",
+          "price_per_night": "$180-250",
+          "notes": "Group discounts available"
+        },
+        {
+          "platform": "Direct Hotel",
+          "url": "https://hotelmadero.com",
+          "price_per_night": "$160-230",
+          "contact": "+54-11-5776-7777",
+          "notes": "Call for group rates"
+        }
+      ]
+    }],
+    "food": [{
+      "name": "Don Julio",
+      "cuisine": "Steakhouse",
+      "good_for_groups": true,
+      "booking_options": [
+        {
+          "platform": "WhatsApp",
+          "contact": "+54-11-4831-9564",
+          "price_range": "$40-80 per person",
+          "notes": "Message for group reservations"
+        }
+      ]
+    }],
+    "activities": [{
+      "name": "Tango Show at Café Tortoni",
+      "type": "nightlife",
+      "bachelor_appropriate": true,
+      "booking_options": [
+        {
+          "platform": "Viator",
+          "url": "https://viator.com/tours/...",
+          "price_per_person": "$45-85",
+          "notes": "Skip-the-line tickets included"
+        }
+      ]
+    }],
+    "schedule": {
+      "day1": ["Airport arrival", "Check-in at hotel", "Welcome dinner"],
+      "day2": ["City tour", "Lunch at parrilla", "Tango show"],
+      "day3": ["Fly to Patagonia", "Glacier tour", "Farewell dinner"]
+    },
+    "booking_summary": {
+      "total_estimated_cost": "$2500-4000 per person",
+      "best_booking_strategy": "Book flights first, then accommodations",
+      "group_booking_tips": [
+        "Contact hotels directly for group rates",
+        "Make restaurant reservations 2-3 weeks ahead",
+        "Book activities with free cancellation"
+      ]
+    }
   },
-  "sources": ["url1", "url2", "url3"],
+  "booking_validation": {
+    "has_flight_bookings": true,
+    "has_hotel_bookings": true,
+    "has_restaurant_bookings": true,
+    "has_activity_bookings": true
+  },
   "status": "success"
 }
 ```
 
-#### Save Itinerary
+#### Save Itinerary to Convex
 ```http
-POST http://localhost:8000/api/save-itinerary
+POST /api/save-itinerary
 Content-Type: application/json
 
 {
-  "itinerary_data": {...},
-  "user_id": "demo-user"
+  "itinerary_data": {
+    "destination": "Buenos Aires and Patagonia",
+    "dates": "November 2024",
+    "travelers": 6,
+    "departureCities": ["San Francisco", "NYC"],
+    "itinerary": {...},
+    "booking_validation": {...}
+  },
+  "user_id": "user_xxxx"
 }
 ```
 
-**Response:**
-```json
+#### Test Booking Search (Development)
+```http
+POST /api/test-booking-search
+Content-Type: application/json
+
 {
-  "success": true,
-  "trip_id": "uuid-string",
-  "message": "Itinerary saved successfully!"
+  "search_type": "flights",
+  "destination": "Buenos Aires",
+  "specific_query": "San Francisco",
+  "dates": "November 2024",
+  "travelers": 6
 }
 ```
+
+### Convex Functions (Real-time Database)
+
+#### User Functions
+- `users.getMyUser` - Get current authenticated user
+- `users.storeFromBackend` - Store user from Clerk (backend only)
+
+#### Trip Functions
+- `trips.getUserTrips` - Get all trips for current user
+- `trips.getTrip` - Get specific trip by ID
+- `trips.deleteTrip` - Delete a trip (with cascade delete)
+- `trips.createFromBackend` - Create trip with full itinerary (backend only)
+- `trips.updateFromBackend` - Update trip (backend only)
+- `trips.deleteFromBackend` - Delete trip (backend only)
 
 ## 🎨 UI/UX Features
 
@@ -214,16 +336,28 @@ fantastic-spork/
 
 ## 🚦 Usage Flow
 
-1. **User visits landing page** (`/`)
-2. **Sees pre-filled form** with demo data for Buenos Aires trip
-3. **Can modify** destination, dates, travelers, departure cities
-4. **Clicks "Generate My Itinerary"** button
-5. **Form data saved** to localStorage
-6. **Navigates to** `/itinerary` page
-7. **Loading spinner** appears while API generates itinerary
-8. **Structured itinerary** displays with sections for flights, hotels, food, activities
-9. **Source links** provided for each recommendation
-10. **User can save** itinerary or start new search
+### For New Users
+1. **Visit Landing Page** - See hero section and travel form
+2. **Sign Up/Sign In** - Create account via Clerk auth
+3. **Fill Travel Form** - Destination, dates, travelers, departure cities
+4. **Generate Itinerary** - AI creates personalized travel plan
+5. **Review Booking Options** - Multiple platforms per item
+6. **Save Itinerary** - Store to personal trip collection
+
+### For Returning Users
+1. **Sign In** - Access saved trips dashboard
+2. **View Saved Trips** - Grid view with trip cards
+3. **Trip Actions**:
+   - **Open** - View full itinerary with booking links
+   - **Edit** - Modify trip details and regenerate
+   - **Delete** - Remove trip with confirmation
+4. **Plan New Trip** - Create additional itineraries
+
+### Booking Flow
+1. **Review Options** - Each item has multiple booking platforms
+2. **Click Booking Button** - Opens platform in new tab
+3. **Alternative Contact** - WhatsApp/phone for local businesses
+4. **Track Progress** - Visual indicators for booking status
 
 ## 🌟 Key Features
 
@@ -279,6 +413,55 @@ All styles use Tailwind CSS classes. Key theme colors:
 - Background gradient: `from-blue-50 to-blue-100`
 - Card backgrounds: `bg-white`
 - Text colors: `text-gray-900`, `text-gray-600`
+
+## 🔧 Development Setup
+
+### Prerequisites
+- Node.js 18+ 
+- Python 3.13+
+- Clerk account (for authentication)
+- Convex account (for database)
+- Perplexity API key (for AI generation)
+
+### Installation
+```bash
+# Clone repository
+git clone <repo-url>
+cd fantastic-spork
+
+# Frontend setup
+cd frontend
+npm install
+
+# Backend setup  
+cd ../backend
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### Environment Variables
+
+#### Frontend (.env.local)
+```env
+VITE_CLERK_PUBLISHABLE_KEY=pk_test_...
+VITE_CONVEX_URL=https://...convex.cloud
+```
+
+#### Backend (.env)
+```env
+PERPLEXITY_API_KEY=pplx-...
+CLERK_SECRET_KEY=sk_test_...
+CONVEX_URL=https://...convex.cloud
+CONVEX_DEPLOYMENT=production
+```
+
+### Convex Setup
+```bash
+cd frontend
+npx convex dev  # Development
+npx convex deploy  # Production
+```
 
 ## 🐛 Troubleshooting
 
