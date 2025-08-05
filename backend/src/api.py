@@ -4,7 +4,7 @@ import httpx
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from convex import ConvexClient
@@ -12,7 +12,18 @@ from convex import ConvexClient
 load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
 app = FastAPI()
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://localhost:3000"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware, 
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://localhost:3000",
+        "https://fantastic-spork-alpha.vercel.app",
+        "https://*.vercel.app"
+    ], 
+    allow_credentials=True, 
+    allow_methods=["*"], 
+    allow_headers=["*"]
+)
 
 convex_client = ConvexClient(os.getenv("CONVEX_URL")) if os.getenv("CONVEX_URL") else None
 
