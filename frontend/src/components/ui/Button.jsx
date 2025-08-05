@@ -20,20 +20,33 @@ const sizes = {
 
 export const Button = forwardRef(
   ({ className, variant = 'primary', size = 'md', children, asChild = false, loading = false, ...props }, ref) => {
-    const Comp = asChild ? 'span' : motion.button;
+    const baseClassName = cn(
+      'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200',
+      'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500',
+      'disabled:opacity-50 disabled:cursor-not-allowed',
+      'relative overflow-hidden',
+      variants[variant],
+      sizes[size],
+      className
+    );
+    
+    if (asChild) {
+      return (
+        <span ref={ref} className={baseClassName} {...props}>
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-inherit">
+              <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            </div>
+          )}
+          <span className={cn('relative', loading && 'invisible')}>{children}</span>
+        </span>
+      );
+    }
     
     return (
-      <Comp
+      <motion.button
         ref={ref}
-        className={cn(
-          'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200',
-          'focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500',
-          'disabled:opacity-50 disabled:cursor-not-allowed',
-          'relative overflow-hidden',
-          variants[variant],
-          sizes[size],
-          className
-        )}
+        className={baseClassName}
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}
         {...props}
@@ -44,7 +57,7 @@ export const Button = forwardRef(
           </div>
         )}
         <span className={cn('relative', loading && 'invisible')}>{children}</span>
-      </Comp>
+      </motion.button>
     );
   }
 );

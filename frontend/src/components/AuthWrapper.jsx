@@ -12,9 +12,11 @@ export function AuthWrapper({ children }) {
     if (clerkLoaded && isSignedIn && user && !hasStoredUser) {
       const storeUserInBackend = async () => {
         try {
-          // In production (Vercel), use relative path. In dev, use localhost
-          const apiUrl = import.meta.env.PROD ? '/api' : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
-          const response = await fetch(`${apiUrl}/store-user`, {
+          // Use environment-appropriate API URL
+          const apiUrl = import.meta.env.PROD 
+            ? '' 
+            : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+          const response = await fetch(`${apiUrl}/api/store-user`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

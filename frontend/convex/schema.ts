@@ -33,6 +33,11 @@ export default defineSchema({
     travelers: v.number(),
     activities: v.array(v.string()),
     notes: v.optional(v.string()),
+    // Enhanced fields for booking support
+    itineraryData: v.optional(v.any()), // Store the full itinerary with booking options
+    bookingValidation: v.optional(v.any()), // Store booking validation status
+    departureCities: v.optional(v.array(v.string())),
+    tripType: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

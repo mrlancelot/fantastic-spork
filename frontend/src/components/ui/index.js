@@ -9,3 +9,5 @@ export { ChatInterface } from './ChatInterface';
 export { NavBar } from './NavBar';
 export { FeatureSection } from './FeatureSection';
 export { Toast } from './Toast';
+export { BookingButton } from './BookingButton';
+export { ContactInfo } from './ContactInfo';

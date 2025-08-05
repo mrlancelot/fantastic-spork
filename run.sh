@@ -26,10 +26,6 @@ run_frontend() {
         npm install
     fi
     
-    # Build the frontend
-    echo -e "${GREEN}Building frontend...${NC}"
-    npm run build
-    
     # Start the development server
     echo -e "${GREEN}Starting frontend development server...${NC}"
     npm run dev
@@ -56,8 +52,7 @@ run_backend() {
     
     # Run the FastAPI server
     echo -e "${GREEN}Starting FastAPI server...${NC}"
-    cd ..
-    uvicorn backend.src.api:app --reload --port 8000
+    fastapi dev src/api.py --port 8000
 }
 
 # Function to run both
