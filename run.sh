@@ -8,10 +8,11 @@ NC='\033[0m' # No Color
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 [frontend|backend|both]"
-    echo "  frontend - Build and run the frontend"
-    echo "  backend  - Run the backend API"
-    echo "  both     - Run both frontend and backend in parallel"
+    echo "Usage: $0 [frontend|backend|convex|all]"
+    echo "  frontend - Run the frontend development server"
+    echo "  backend  - Run the backend API server"
+    echo "  convex   - Run Convex development server"
+    echo "  all      - Run all three services (frontend, backend, convex)"
     exit 1
 }
 
@@ -45,38 +46,61 @@ run_backend() {
     # Activate virtual environment
     source venv/bin/activate
     
-    # Install dependencies
-    echo -e "${GREEN}Installing backend dependencies...${NC}"
-    pip install -r requirements.txt
-    pip install "fastapi[standard]"
+    # Install dependencies if requirements.txt is newer than venv
+    if [ "requirements.txt" -nt "venv" ] || [ ! -f "venv/.deps_installed" ]; then
+        echo -e "${GREEN}Installing backend dependencies...${NC}"
+        pip install -r requirements.txt
+        pip install "fastapi[standard]"
+        touch venv/.deps_installed
+    fi
     
-    # Run the FastAPI server
-    echo -e "${GREEN}Starting FastAPI server...${NC}"
-    fastapi dev src/api.py --port 8000
+    # Run the FastAPI server using the new main.py
+    echo -e "${GREEN}Starting FastAPI server on port 8000...${NC}"
+    python -m src.main
 }
 
-# Function to run both
-run_both() {
-    echo -e "${BLUE}Starting both Frontend and Backend...${NC}"
+# Function to run Convex
+run_convex() {
+    echo -e "${BLUE}Starting Convex...${NC}"
+    cd frontend
+    
+    # Check if node_modules exists
+    if [ ! -d "node_modules" ]; then
+        echo -e "${GREEN}Installing frontend dependencies for Convex...${NC}"
+        npm install
+    fi
+    
+    echo -e "${GREEN}Starting Convex development server...${NC}"
+    npx convex dev
+}
+
+# Function to run all services
+run_all() {
+    echo -e "${BLUE}Starting all services (Frontend, Backend, Convex)...${NC}"
     
     # Run backend in background
     (run_backend) &
     BACKEND_PID=$!
     
-    # Wait a bit for backend to start
-    sleep 3
+    # Run convex in background
+    (run_convex) &
+    CONVEX_PID=$!
     
-    # Run frontend
+    # Wait a bit for backend and convex to start
+    sleep 5
+    
+    # Run frontend in background
     (run_frontend) &
     FRONTEND_PID=$!
     
-    echo -e "${GREEN}Both services are starting...${NC}"
-    echo -e "${GREEN}Backend PID: $BACKEND_PID${NC}"
-    echo -e "${GREEN}Frontend PID: $FRONTEND_PID${NC}"
-    echo -e "${BLUE}Press Ctrl+C to stop both services${NC}"
+    echo -e "${GREEN}All services are running:${NC}"
+    echo -e "${GREEN}  Backend PID:  $BACKEND_PID  (http://localhost:8000)${NC}"
+    echo -e "${GREEN}  Convex PID:   $CONVEX_PID   (Convex Dashboard)${NC}"
+    echo -e "${GREEN}  Frontend PID: $FRONTEND_PID (http://localhost:5173)${NC}"
+    echo -e "${BLUE}Press Ctrl+C to stop all services${NC}"
     
-    # Wait for both processes
-    wait $BACKEND_PID $FRONTEND_PID
+    # Wait for all processes
+    wait $BACKEND_PID $CONVEX_PID $FRONTEND_PID
 }
 
 # Main script
@@ -87,9 +111,12 @@ case "$1" in
     backend)
         run_backend
         ;;
-    both)
-        trap 'echo -e "${RED}Stopping services...${NC}"; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit' INT
-        run_both
+    convex)
+        run_convex
+        ;;
+    all)
+        trap 'echo -e "${RED}Stopping all services...${NC}"; kill $BACKEND_PID $CONVEX_PID $FRONTEND_PID 2>/dev/null; exit' INT
+        run_all
         ;;
     *)
         usage

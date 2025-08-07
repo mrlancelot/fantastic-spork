@@ -8,12 +8,17 @@ import {
   Plane,
   ArrowRight,
   UserCircle,
-  LogOut
+  LogOut,
+  Sparkles,
+  Building2,
+  Map,
+  MessageCircle
 } from 'lucide-react';
 import { Button, Card, CardContent } from './ui';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { TripList } from './TripList';
 import { SignInButton, SignOutButton, SignUpButton } from '@clerk/clerk-react';
+import Navigation from './Navigation';
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -73,9 +78,12 @@ const Landing = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-blue-100 to-blue-200">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      {/* Navigation */}
+      <Navigation />
+      
       {/* Auth Header */}
-      <div className="absolute top-4 right-4">
+      <div className="absolute top-4 right-4 z-10">
         {isSignedIn ? (
           <div className="flex items-center gap-4">
             <div className="flex items-center gap-2 text-sm text-gray-700">
@@ -110,19 +118,177 @@ const Landing = () => {
             transition={{ duration: 0.8 }}
           >
             <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-              <span className="bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                Waypoint
+              <span className="bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+                TravelAI MVP
               </span>
             </h1>
             <p className="text-2xl md:text-3xl text-gray-700 mb-4">
-              AI Travel Planner for Locals
+              Smart Travel Planning Powered by AI
             </p>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Create perfect itineraries with local insights and real-time recommendations
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto mb-8">
+              Experience the future of travel planning with our integrated AI-powered platform featuring smart daily planners, real-time flight search, hotel sentiment analysis, and intelligent chat assistance.
             </p>
+            
+            {/* Quick Action Buttons */}
+            <div className="flex flex-wrap justify-center gap-4 mb-12">
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/planner')}
+                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg"
+              >
+                <Sparkles className="w-5 h-5" />
+                Smart Planner
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/search')}
+                className="flex items-center gap-2 bg-white text-blue-600 px-6 py-3 rounded-xl font-semibold shadow-lg border-2 border-blue-200"
+              >
+                <Plane className="w-5 h-5" />
+                Search Travel
+              </motion.button>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/documents')}
+                className="flex items-center gap-2 bg-white text-purple-600 px-6 py-3 rounded-xl font-semibold shadow-lg border-2 border-purple-200"
+              >
+                <Building2 className="w-5 h-5" />
+                Travel Docs
+              </motion.button>
+            </div>
           </motion.div>
         </div>
       </div>
+
+      {/* Features Showcase */}
+      {!isSignedIn && (
+        <div className="pb-16 px-4">
+          <div className="max-w-6xl mx-auto">
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+              className="text-center mb-12"
+            >
+              <h2 className="text-3xl font-bold text-gray-800 mb-4">Powerful Travel Planning Features</h2>
+              <p className="text-lg text-gray-600">Everything you need for the perfect trip, powered by AI and real-time data</p>
+            </motion.div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Smart Daily Planner */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1 }}
+                className="bg-white rounded-2xl p-6 shadow-xl border border-purple-100 hover:shadow-2xl transition-all duration-300"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mb-4">
+                  <Sparkles className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Smart Daily Planner</h3>
+                <p className="text-gray-600 mb-4">AI-powered 4-slot daily planning with drag-drop, weather integration, and celebration animations</p>
+                <ul className="text-sm text-gray-500 space-y-1">
+                  <li>• Morning, Midday, Evening, Night slots</li>
+                  <li>• Weather-aware planning</li>
+                  <li>• Drag & drop reordering</li>
+                  <li>• Confetti celebrations</li>
+                </ul>
+              </motion.div>
+
+              {/* Flight Search */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white rounded-2xl p-6 shadow-xl border border-blue-100 hover:shadow-2xl transition-all duration-300"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center mb-4">
+                  <Plane className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Flight Search</h3>
+                <p className="text-gray-600 mb-4">Real-time flight data from Amadeus with smart routing and price analysis</p>
+                <ul className="text-sm text-gray-500 space-y-1">
+                  <li>• Real-time pricing</li>
+                  <li>• Multi-airport search</li>
+                  <li>• Delay predictions</li>
+                  <li>• Cheapest date finder</li>
+                </ul>
+              </motion.div>
+
+              {/* Hotel Search */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-white rounded-2xl p-6 shadow-xl border border-pink-100 hover:shadow-2xl transition-all duration-300"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-pink-500 to-pink-600 rounded-xl flex items-center justify-center mb-4">
+                  <Building2 className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">Hotel Intelligence</h3>
+                <p className="text-gray-600 mb-4">Advanced hotel search with AI-powered sentiment analysis from guest reviews</p>
+                <ul className="text-sm text-gray-500 space-y-1">
+                  <li>• Sentiment analysis</li>
+                  <li>• Price comparison</li>
+                  <li>• Guest review insights</li>
+                  <li>• Group booking options</li>
+                </ul>
+              </motion.div>
+
+              {/* AI Chat */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.4 }}
+                className="bg-white rounded-2xl p-6 shadow-xl border border-green-100 hover:shadow-2xl transition-all duration-300"
+              >
+                <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-xl flex items-center justify-center mb-4">
+                  <MessageCircle className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-xl font-bold text-gray-800 mb-2">AI Travel Assistant</h3>
+                <p className="text-gray-600 mb-4">Intelligent chat interface powered by advanced AI workflows for instant travel help</p>
+                <ul className="text-sm text-gray-500 space-y-1">
+                  <li>• Natural language queries</li>
+                  <li>• Real-time recommendations</li>
+                  <li>• Context-aware responses</li>
+                  <li>• Travel expertise on demand</li>
+                </ul>
+              </motion.div>
+            </div>
+            
+            {/* Map Journey Preview */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="mt-12 bg-white rounded-2xl p-8 shadow-xl"
+            >
+              <div className="text-center mb-6">
+                <Map className="w-12 h-12 mx-auto text-blue-600 mb-4" />
+                <h3 className="text-2xl font-bold text-gray-800 mb-2">Cartoon Map Journey</h3>
+                <p className="text-gray-600">Visual progress tracking with Angry Birds style progression through your travel adventure</p>
+              </div>
+              <div className="bg-gradient-to-r from-blue-100 via-purple-100 to-pink-100 rounded-xl p-8 text-center">
+                <div className="flex justify-center items-center gap-4 text-4xl mb-4">
+                  <span>🏠</span>
+                  <span className="text-blue-500">→</span>
+                  <span>✈️</span>
+                  <span className="text-blue-500">→</span>
+                  <span>🏔️</span>
+                  <span className="text-blue-500">→</span>
+                  <span>🌊</span>
+                  <span className="text-blue-500">→</span>
+                  <span>🎯</span>
+                </div>
+                <p className="text-gray-600">Track your journey progress with delightful animations and celebrations</p>
+              </div>
+            </motion.div>
+          </div>
+        </div>
+      )}
 
       {/* Trip List for Authenticated Users */}
       {isSignedIn && !showTripForm && (

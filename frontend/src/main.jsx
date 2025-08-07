@@ -6,8 +6,8 @@ import { ConvexProviderWithClerk } from "convex/react-clerk";
 import App from "./App.jsx";
 import "./index.css";
 
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
-const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL || "https://successful-husky-371.convex.cloud");
+const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "pk_test_aW50ZWdyYWwtaGFnZmlzaC0yMS5jbGVyay5hY2NvdW50cy5kZXYk";
 
 if (!clerkPubKey) {
   throw new Error("Missing Publishable Key");

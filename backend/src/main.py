@@ -1,54 +1,94 @@
 """
-If you are deploying on Vercel, you can delete this file.
-
-This app puts together the frontend UI and backend API for deployment on Render.
-For local development, the app for just the API should be run on its own:
-$ fastapi dev src/api.py
-
-The provided Dockerfile will handle putting everything together for deployment.
-When used, the application bundle from building the React app with `npm run build`
-is placed at the public directory defined below for FastAPI to serve as static assets.
-That means any requests for existing files will be served the contents of those files,
-and any requests for the API paths will be sent to the API routes defined in the API.
+TravelAI Backend API - Production Ready with Amadeus Integration
+No fallbacks, no mock data - Real travel services only
 """
 
+import os
 from pathlib import Path
+from dotenv import load_dotenv
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from typing import Optional
+from datetime import datetime
 
-from fastapi import FastAPI, Request, status
-from fastapi.exceptions import HTTPException
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
+# Load environment variables from root directory
+load_dotenv(Path(__file__).parent.parent.parent / '.env')
 
-import api
+# Import routers
+from .routers import flights, hotels, activities, analytics, planner, chat, health
 
-PUBLIC_DIRECTORY = Path("public")
+# Import exception handlers
+from .core.exceptions import TravelAIException
 
-# Create a main app under which the API will be mounted as a sub-app
-app = FastAPI()
+# Create FastAPI app
+app = FastAPI(
+    title="TravelAI Backend API",
+    description="""
+    🚀 **Production Travel API with Amadeus Integration**
+    
+    Real-time travel data from Amadeus GDS.
+    No mock data, no fallbacks - Production ready.
+    
+    ## Services
+    - ✈️ Flights: Search, status, analytics
+    - 🏨 Hotels: Search and sentiments
+    - 🎯 Activities: Tours and experiences
+    - 📊 Analytics: Market insights
+    - 🤖 AI: Smart planning and chat
+    """,
+    version="4.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc"
+)
 
-# Send all requests to paths under `/api/*` to the API router
-app.mount("/api/", api.app)
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
+# Include routers
+app.include_router(health.router, prefix="/api", tags=["Health"])
+app.include_router(flights.router, prefix="/api/flights", tags=["Flights"])
+app.include_router(hotels.router, prefix="/api/hotels", tags=["Hotels"])
+app.include_router(activities.router, prefix="/api/activities", tags=["Activities"])
+app.include_router(analytics.router, prefix="/api/analytics", tags=["Analytics"])
+app.include_router(planner.router, prefix="/api/planner", tags=["Planner"])
+app.include_router(chat.router, prefix="/api/chat", tags=["AI Chat"])
 
-@app.get("/")
-async def root() -> FileResponse:
-    """Serve the frontend app on the root path."""
-    return FileResponse(PUBLIC_DIRECTORY / "index.html")
+# Exception handlers
+@app.exception_handler(TravelAIException)
+async def travel_ai_exception_handler(request: Request, exc: TravelAIException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.error_type,
+            "message": exc.message,
+            "details": exc.details
+        }
+    )
 
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": "HTTP_ERROR",
+            "message": exc.detail,
+            "status_code": exc.status_code
+        }
+    )
 
-# Make the public files (HTML, JS, CSS, etc.) accessible on the server
-app.mount("/", StaticFiles(directory=PUBLIC_DIRECTORY), name="public")
-
-
-@app.exception_handler(status.HTTP_404_NOT_FOUND)
-async def not_found(req: Request, exc: HTTPException) -> FileResponse:
-    """
-    Serve the frontend app for all other requests not directed to `/api/` or `/`.
-
-    This allows the single-page application to do client-side routing where the browser
-    process the URL path in the React App. Otherwise, users would see 404 Not Found when
-    navigating directly to a virtual path.
-
-    This should be removed if the frontend app does not handle different URL paths.
-    """
-    return FileResponse(PUBLIC_DIRECTORY / "index.html")
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "src.main:app",
+        host="0.0.0.0",
+        port=8000,
+        reload=True,
+        log_level="info"
+    )
