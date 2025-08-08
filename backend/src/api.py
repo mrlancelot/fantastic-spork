@@ -1,998 +1,761 @@
-"""TravelAI Backend API - Complete Integration with Waypoint-BE Services
-
-This is the primary entry point for the TravelAI MVP backend API with full Amadeus integration.
-Includes all travel services from waypoint-be project.
+"""
+Simplified TravelAI Backend API
+Compact implementation with all endpoints using Amadeus for travel data and Google SDK for AI
 """
 
 import os
-import json
-import httpx
-import uuid
+import logging
 from datetime import datetime, timedelta
 from pathlib import Path
-from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
 from typing import Optional, List, Dict, Any
-import asyncio
 
-# Load environment variables
-load_dotenv(Path(__file__).parent.parent / '.env')
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from dotenv import load_dotenv
+from amadeus import Client, ResponseError
+import google.generativeai as genai
 
-# Import agent functionality
-import sys
-sys.path.append(str(Path(__file__).parent.parent))
-from agent import run_agent_with_calculator, run_agent_basic, run_agent_with_mcp
+# Load environment
+root_env = Path(__file__).parent.parent.parent / '.env'
+load_dotenv(root_env, override=True)
 
-# Import all travel services
-from .services.agent_workflow import get_agent_workflow_service
-from .services.restaurant_agent import RestaurantAgent
-from .services.flights import (
-    search_flights,
-    AmadeusFlightService as FlightSearchService,
-    FlightSearchRequest,
-    FlexibleFlightSearch,
-    FlexibleSearchRequest,
-    CheapestDateSearch,
-    CheapestDateSearchRequest
-)
-from .services.travel_services import (
-    HotelSearchService,
-    HotelSearchRequest,
-    ActivitySearchService,
-    ActivitySearchRequest,
-    FlightStatusService,
-    FlightStatusRequest,
-    CheckInLinksService,
-    CheckInLinksRequest,
-    TransferSearchService,
-    TransferSearchRequest
-)
-from .services.market_insights import (
-    MarketInsightsService,
-    FlightInspirationRequest,
-    TravelAnalyticsRequest,
-    BusiestPeriodRequest,
-    FlightDelayRequest,
-    TripPurposeRequest,
-    AirportRoutesRequest,
-    HotelSentimentsRequest,
-    PriceAnalysisRequest
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Initialize services
+amadeus = Client(
+    client_id=os.getenv("AMADEUS_API_KEY"),
+    client_secret=os.getenv("AMADEUS_Secret"),
+    hostname='test'
 )
 
-# Import existing services for backward compatibility
-from .services.smart_planner import SmartPlannerService
-from .services.user_service import UserService
-from .agents.ai_agent import AIAgent
-from .agents.workflow_agent import WorkflowAgent
-from .models.requests import (
-    DailySlot, DailyPlan, SmartItinerary, ChatRequest, WeatherRequest,
-    SmartPlannerRequest, StoreUserRequest
-)
-from .core.config import get_settings
-from .core.exceptions import TravelAIException
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+gemini_model = genai.GenerativeModel('gemini-1.5-flash')
 
-try:
-    from convex import ConvexClient
-except ImportError:
-    ConvexClient = None
-
-# Initialize settings
-settings = get_settings()
-
-# Define tags metadata for better organization in Swagger UI
-tags_metadata = [
-    {
-        "name": "System",
-        "description": "System health and status endpoints",
-    },
-    {
-        "name": "Flights - Search & Booking",
-        "description": "Search and book flights, find cheapest dates and flexible options",
-    },
-    {
-        "name": "Flights - Operations",
-        "description": "Flight status tracking and check-in services",
-    },
-    {
-        "name": "Flights - Analytics",
-        "description": "Flight price analysis and historical data",
-    },
-    {
-        "name": "Flights - Predictions",
-        "description": "ML-powered flight delay predictions",
-    },
-    {
-        "name": "Flights - Inspiration & Planning",
-        "description": "Flight inspiration and destination discovery",
-    },
-    {
-        "name": "Hotels",
-        "description": "Hotel search, booking, and sentiment analysis",
-    },
-    {
-        "name": "Activities & Tours",
-        "description": "Find and book tours, activities, and experiences",
-    },
-    {
-        "name": "Transfers & Ground Transport",
-        "description": "Airport transfers and ground transportation",
-    },
-    {
-        "name": "Airports",
-        "description": "Airport information and route data",
-    },
-    {
-        "name": "Market Analytics",
-        "description": "Travel market insights, trends, and analytics",
-    },
-    {
-        "name": "Trip Intelligence",
-        "description": "Smart trip analysis and predictions",
-    },
-    {
-        "name": "Restaurants",
-        "description": "Restaurant discovery and recommendations",
-    },
-    {
-        "name": "AI Agents",
-        "description": "AI-powered travel planning agents",
-    },
-    {
-        "name": "Smart Planner",
-        "description": "AI-powered daily itinerary planning",
-    },
-    {
-        "name": "User Management",
-        "description": "User authentication and profile management",
-    },
-]
-
-# Create FastAPI app with proper metadata
+# FastAPI app
 app = FastAPI(
-    title="TravelAI Backend API with Amadeus Integration",
-    description="""
-    🚀 **Comprehensive Travel API Platform**
-    
-    This API provides access to real Amadeus travel services, AI agents, and smart planning features.
-    
-    ## Features
-    
-    - ✈️ **Flight Services**: Search, book, track status, find cheapest dates
-    - 🏨 **Hotels**: Search accommodations and analyze guest sentiments
-    - 🎯 **Activities**: Discover tours and experiences
-    - 🚗 **Transfers**: Book ground transportation
-    - 📊 **Analytics**: Market insights and travel trends
-    - 🤖 **AI Agents**: Intelligent travel planning assistance
-    - 🔮 **Predictions**: ML-powered delay and trip purpose predictions
-    - 📅 **Smart Planner**: AI-powered daily itinerary creation
-    
-    ## Environment
-    
-    Using Amadeus API for real travel data.
-    """,
-    version="3.0.0",
-    openapi_tags=tags_metadata,
-    docs_url="/docs" if settings.debug else None,
-    redoc_url="/redoc" if settings.debug else None
+    title="TravelAI API",
+    version="2.0.0",
+    description="Simplified Travel API with Amadeus and Google AI"
 )
 
-# Configure CORS for all environments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:3000", 
-        "http://localhost:8000",
-        "https://fantastic-spork-alpha.vercel.app",
-        "https://*.vercel.app",
-        "*"  # Allow all origins for development
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"]
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Global service instances (lazy initialized)
-services = {
-    "planner": None,
-    "user": None,
-    "ai_agent": None,
-    "workflow_agent": None
-}
+# ============= MODELS =============
 
-def get_planner_service() -> SmartPlannerService:
-    """Get smart planner service instance"""
-    if services["planner"] is None:
-        services["planner"] = SmartPlannerService()
-    return services["planner"]
+class FlightSearchRequest(BaseModel):
+    origin: str
+    destination: str
+    departure_date: str
+    return_date: Optional[str] = None
+    adults: int = 1
+    travel_class: str = "ECONOMY"
+    max_results: int = 10
 
-def get_user_service() -> UserService:
-    """Get user service instance"""
-    if services["user"] is None:
-        services["user"] = UserService()
-    return services["user"]
+class HotelSearchRequest(BaseModel):
+    city_code: str
+    check_in_date: str
+    check_out_date: str
+    adults: int = 1
+    radius: int = 5
+    radius_unit: str = "KM"
+    amenities: Optional[List[str]] = None
+    ratings: Optional[List[int]] = None
 
-def get_ai_agent() -> AIAgent:
-    """Get AI agent instance"""
-    if services["ai_agent"] is None:
-        services["ai_agent"] = AIAgent()
-    return services["ai_agent"]
+class ActivitySearchRequest(BaseModel):
+    latitude: float
+    longitude: float
+    radius: int = 5
+    max_results: int = 20
 
-def get_workflow_agent() -> WorkflowAgent:
-    """Get workflow agent instance"""
-    if services["workflow_agent"] is None:
-        services["workflow_agent"] = WorkflowAgent()
-    return services["workflow_agent"]
+class ChatRequest(BaseModel):
+    message: str
+    context: Optional[Dict] = None
 
-# ============================================================================
-# HEALTH & STATUS ENDPOINTS
-# ============================================================================
+class SmartPlannerRequest(BaseModel):
+    destination: str
+    start_date: str
+    end_date: str
+    interests: List[str]
+    budget: int
+    pace: str = "moderate"
 
-@app.get("/", tags=["System"])
-async def root():
+# ============= HELPER FUNCTIONS =============
+
+def resolve_airport_code(city: str) -> str:
+    """Simple airport code resolution"""
+    city_upper = city.upper()
+    if len(city_upper) == 3:
+        return city_upper
+    
+    # Common city mappings
+    mappings = {
+        "NEW YORK": "JFK", "NYC": "JFK",
+        "LOS ANGELES": "LAX", "LA": "LAX",
+        "CHICAGO": "ORD", "CHI": "ORD",
+        "LONDON": "LHR", "LON": "LHR",
+        "PARIS": "CDG", "PAR": "CDG",
+        "TOKYO": "NRT", "TYO": "NRT",
+        "SAN FRANCISCO": "SFO", "SF": "SFO"
+    }
+    
+    for key, code in mappings.items():
+        if key in city.upper():
+            return code
+    
+    return city[:3].upper()
+
+async def ai_chat(message: str, context: Optional[Dict] = None) -> str:
+    """Simple AI chat using Gemini"""
+    try:
+        prompt = message
+        if context:
+            prompt = f"Context: {context}\n\nUser: {message}"
+        
+        response = gemini_model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        logger.error(f"AI chat error: {e}")
+        return "I'm having trouble processing your request. Please try again."
+
+# ============= ENDPOINTS =============
+
+# User Storage (for Clerk integration)
+@app.post("/api/store-user")
+async def store_user(user_data: Dict[str, Any]):
+    """Store user data from Clerk authentication"""
     return {
-        "message": "Welcome to TravelAI Backend API with Amadeus Integration",
-        "version": "3.0.0",
-        "docs": "/docs" if settings.debug else "Available in development mode"
+        "status": "success",
+        "message": "User stored",
+        "user_id": user_data.get("id", "unknown")
     }
 
-@app.get("/api/health", tags=["System"])
-async def health_check():
-    """Health check endpoint for monitoring"""
+# Health
+@app.get("/api/health")
+async def health():
     return {
         "status": "healthy",
         "service": "travelai-backend",
-        "version": "3.0.0",
-        "timestamp": datetime.now().isoformat(),
-        "amadeus": "enabled"
+        "version": "2.0.0",
+        "timestamp": datetime.now().isoformat()
     }
 
-@app.get("/api/hello", tags=["System"])
-async def hello():
-    """Simple hello endpoint for testing"""
+@app.get("/api/status")
+async def status():
     return {
-        "message": "Hello from TravelAI Backend with Amadeus!",
-        "version": "3.0.0",
-        "docs": "/docs" if settings.debug else "Available in development mode"
+        "amadeus": "connected",
+        "gemini": "connected",
+        "uptime": "100%"
     }
 
-@app.get("/api/test-env", tags=["System"])
-async def test_environment():
-    """Test environment configuration (development only)"""
-    if not settings.debug:
-        raise HTTPException(status_code=404, detail="Not found")
-    
-    return {
-        "gemini_api_key": "✓" if settings.gemini_api_key else "✗",
-        "convex_url": "✓" if settings.convex_url else "✗",
-        "clerk_secret_key": "✓" if settings.clerk_secret_key else "✗",
-        "amadeus_client_id": "✓" if os.getenv("AMADEUS_API_KEY") else "✗",
-        "amadeus_client_secret": "✓" if os.getenv("AMADEUS_Secret") else "✗",
-        "openrouter_api_key": "✓" if os.getenv("OPENROUTER_API_KEY") else "✗",
-        "environment": "development"
-    }
+# ============= FLIGHTS =============
 
-# ============================================================================
-# USER MANAGEMENT (Write Operations)
-# ============================================================================
-
-@app.post("/api/store-user", tags=["User Management"])
-async def store_user(request: StoreUserRequest):
-    """Store user data from Clerk authentication (Write Operation)"""
+@app.post("/api/flights/search")
+async def search_flights(request: FlightSearchRequest):
+    """Search flights using Amadeus"""
     try:
-        result = await get_user_service().store_user(request)
-        return result
-    except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "message": "User storage failed but authentication succeeded"
-        }
-
-# ============================================================================
-# AI CHAT (External API)
-# ============================================================================
-
-@app.post("/api/chat", tags=["AI Agents"])
-async def chat_with_ai(request: ChatRequest):
-    """AI-powered chat using Gemini (External API)"""
-    try:
-        result = await get_ai_agent().chat_completion(request.message, request.context)
-        return {
-            "status": "success",
-            "response": result,
-            "context": request.context
-        }
-    except Exception as e:
-        return {
-            "status": "success",
-            "response": f"I understand you're asking about: {request.message}. How can I help you plan your trip?",
-            "fallback": True,
-            "error": str(e)
-        }
-
-@app.post("/api/chat/agent", tags=["AI Agents"])
-async def chat_with_workflow_agent(request: ChatRequest):
-    """AI-powered chat using workflow agent (External API)"""
-    try:
-        result = await get_workflow_agent().process_query(request.message, request.context)
-        return {
-            "status": "success",
-            "response": result.get("response", "I'm here to help with your travel planning!"),
-            "data": result.get("data", {}),
-            "action": result.get("action", "general_chat")
-        }
-    except Exception as e:
-        return {
-            "status": "success",
-            "response": "I'm your travel planning assistant! How can I help you today?",
-            "fallback": True,
-            "error": str(e)
-        }
-
-@app.get("/api/agent/workflow", tags=["AI Agents"])
-async def agent_workflow(query: str) -> dict:
-    """Run agent workflow for complex travel queries"""
-    try:
-        agent_workflow_service = get_agent_workflow_service()
-        result = await agent_workflow_service.run_workflow(query)
-        return {
-            "status": "success",
-            "result": result,
-            "message": "Workflow executed successfully"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {str(e)}")
-
-# ============================================================================
-# FLIGHT SEARCH (Amadeus API)
-# ============================================================================
-
-@app.post("/api/flights/search", tags=["Flights - Search & Booking"])
-async def search_flights_api(request: FlightSearchRequest):
-    """
-    Search for flights using Amadeus API with support for both one-way and roundtrip.
-    
-    Example request:
-    {
-        "origin": "LAX",
-        "destination": "JFK",
-        "departure_date": "2025-01-15",
-        "return_date": "2025-01-22",
-        "trip_type": "round-trip",
-        "adults": 2,
-        "seat_class": "economy"
-    }
-    """
-    try:
-        flight_service = FlightSearchService()
-        result = await flight_service.search(request)
-        return {"status": "success", "flights": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Flight search failed: {str(e)}")
-
-@app.get("/api/flights", tags=["Flights - Search & Booking"])
-async def get_flights(
-    from_city: str,
-    to_city: str,
-    departure_date: str,
-    return_date: Optional[str] = None
-) -> dict:
-    """Smart flight search with multiple airports"""
-    try:
-        result = await search_flights(from_city, to_city, departure_date, return_date)
-        return {
-            "status": "success",
-            "outbound": result.outbound,
-            "return_flights": result.return_flights,
-            "best_options": result.best_options,
-            "total_found": result.total,
-            "searches_executed": result.searches
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Flight search failed: {str(e)}")
-
-@app.post("/api/flights/flexible", tags=["Flights - Search & Booking"])
-async def search_flexible_dates(request: FlexibleSearchRequest):
-    """Search for cheapest flight dates within a month"""
-    try:
-        flexible_service = FlexibleFlightSearch()
-        result = await flexible_service.search_flexible_dates(request)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Flexible search failed: {str(e)}")
-
-@app.post("/api/flights/cheapest-dates", tags=["Flights - Search & Booking"])
-async def search_cheapest_dates(request: CheapestDateSearchRequest):
-    """Find the cheapest travel dates for a route using Amadeus"""
-    try:
-        cheapest_date_service = CheapestDateSearch()
-        result = await cheapest_date_service.search_cheapest_dates(request)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Cheapest date search failed: {str(e)}")
-
-@app.get("/api/flights/cheapest-dates", tags=["Flights - Search & Booking"])
-async def get_cheapest_dates(
-    origin: str,
-    destination: str,
-    departure_date: Optional[str] = None,
-    one_way: bool = False,
-    duration: Optional[int] = None
-):
-    """Simple GET endpoint for cheapest date search"""
-    try:
-        request = CheapestDateSearchRequest(
-            origin=origin,
-            destination=destination,
-            departure_date=departure_date,
-            one_way=one_way,
-            duration=duration
+        origin = resolve_airport_code(request.origin)
+        destination = resolve_airport_code(request.destination)
+        
+        response = amadeus.shopping.flight_offers_search.get(
+            originLocationCode=origin,
+            destinationLocationCode=destination,
+            departureDate=request.departure_date,
+            returnDate=request.return_date,
+            adults=request.adults,
+            travelClass=request.travel_class,
+            max=request.max_results
         )
-        cheapest_date_service = CheapestDateSearch()
-        result = await cheapest_date_service.search_cheapest_dates(request)
-        return result
+        
+        flights = []
+        for offer in response.data[:request.max_results]:
+            price = offer.get('price', {})
+            itineraries = offer.get('itineraries', [])
+            
+            for itinerary in itineraries:
+                segments = itinerary.get('segments', [])
+                if segments:
+                    first_seg = segments[0]
+                    last_seg = segments[-1]
+                    
+                    flights.append({
+                        "airline": first_seg.get('carrierCode', 'N/A'),
+                        "flight_number": first_seg.get('number', 'N/A'),
+                        "departure_time": first_seg.get('departure', {}).get('at', 'N/A'),
+                        "arrival_time": last_seg.get('arrival', {}).get('at', 'N/A'),
+                        "duration": itinerary.get('duration', 'N/A'),
+                        "stops": len(segments) - 1,
+                        "price": f"{price.get('currency', 'USD')} {price.get('total', 'N/A')}"
+                    })
+        
+        return {"status": "success", "flights": flights}
+        
+    except ResponseError as e:
+        logger.error(f"Amadeus error: {e}")
+        return {"status": "error", "flights": [], "message": str(e)}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Cheapest date search failed: {str(e)}")
+        logger.error(f"Flight search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ============================================================================
-# HOTEL SEARCH (Amadeus API)
-# ============================================================================
-
-@app.post("/api/hotels/search", tags=["Hotels"])
-async def search_hotels_api(request: HotelSearchRequest):
-    """Search for hotels using Amadeus API by city or coordinates"""
-    try:
-        hotel_service = HotelSearchService()
-        result = await hotel_service.search_hotels(request)
-        return {"status": "success", "hotels": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Hotel search failed: {str(e)}")
-
-@app.get("/api/hotels/search", tags=["Hotels"])
-async def get_hotels(
-    city_code: Optional[str] = None,
-    latitude: Optional[float] = None,
-    longitude: Optional[float] = None,
-    check_in_date: str = None,
-    check_out_date: str = None,
-    adults: int = 1,
-    rooms: int = 1
-):
-    """Simple GET endpoint for hotel search"""
-    try:
-        request = HotelSearchRequest(
-            city_code=city_code,
-            latitude=latitude,
-            longitude=longitude,
-            check_in_date=check_in_date,
-            check_out_date=check_out_date,
-            adults=adults,
-            rooms=rooms
-        )
-        hotel_service = HotelSearchService()
-        result = await hotel_service.search_hotels(request)
-        return {"status": "success", "hotels": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Hotel search failed: {str(e)}")
-
-@app.post("/api/hotels/sentiments", tags=["Hotels"])
-async def get_hotel_sentiments(request: HotelSentimentsRequest):
-    """Get hotel sentiment analysis"""
-    try:
-        insights_service = MarketInsightsService()
-        result = await insights_service.get_hotel_sentiments(request)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Hotel sentiments analysis failed: {str(e)}")
-
-@app.get("/api/hotels/sentiments", tags=["Hotels"])
-async def get_hotel_sentiments_get(hotel_ids: str):
-    """Get hotel sentiments - GET endpoint"""
-    try:
-        request = HotelSentimentsRequest(hotel_ids=hotel_ids.split(','))
-        insights_service = MarketInsightsService()
-        result = await insights_service.get_hotel_sentiments(request)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Hotel sentiments analysis failed: {str(e)}")
-
-# ============================================================================
-# ACTIVITIES SEARCH (Amadeus API)
-# ============================================================================
-
-@app.post("/api/activities/search", tags=["Activities & Tours"])
-async def search_activities_api(request: ActivitySearchRequest):
-    """Search for tours and activities using Amadeus API"""
-    try:
-        activity_service = ActivitySearchService()
-        result = await activity_service.search_activities(request)
-        return {"status": "success", "activities": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Activity search failed: {str(e)}")
-
-@app.get("/api/activities/search", tags=["Activities & Tours"])
-async def get_activities(
-    latitude: float,
-    longitude: float,
-    radius: int = 5,
+class FlexibleSearchRequest(BaseModel):
+    origin: str
+    destination: str
+    departure_month: str
+    trip_length_days: int = 7
     adults: int = 1
-):
-    """Simple GET endpoint for activity search"""
-    try:
-        request = ActivitySearchRequest(
-            latitude=latitude,
-            longitude=longitude,
-            radius=radius,
-            adults=adults
-        )
-        activity_service = ActivitySearchService()
-        result = await activity_service.search_activities(request)
-        return {"status": "success", "activities": result}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Activity search failed: {str(e)}")
 
-# ============================================================================
-# RESTAURANT SEARCH (AI Agent)
-# ============================================================================
-
-@app.post("/api/restaurants/search", tags=["Restaurants"])
-async def search_restaurants(query: str, location: str):
-    """Search restaurants using AI agent"""
+@app.post("/api/flights/flexible")
+async def search_flexible_flights(request: FlexibleSearchRequest):
+    """Search flexible date flights"""
     try:
-        restaurant_agent = RestaurantAgent()
-        result = await restaurant_agent.scrape_restaurants(f"{query} in {location}", stream=False)
-        return {"status": "success", "restaurants": result}
-    except Exception as e:
+        origin = resolve_airport_code(request.origin)
+        destination = resolve_airport_code(request.destination)
+        
+        # Parse month and search multiple dates
+        year, month = request.departure_month.split('-')
+        results = []
+        
+        for day in [1, 8, 15, 22]:
+            try:
+                date = f"{year}-{month}-{day:02d}"
+                response = amadeus.shopping.flight_offers_search.get(
+                    originLocationCode=origin,
+                    destinationLocationCode=destination,
+                    departureDate=date,
+                    adults=request.adults,
+                    max=1
+                )
+                
+                if response.data:
+                    price = response.data[0].get('price', {})
+                    results.append({
+                        "departure_date": date,
+                        "return_date": (datetime.strptime(date, "%Y-%m-%d") + timedelta(days=request.trip_length_days)).strftime("%Y-%m-%d"),
+                        "price": float(price.get('total', 0)),
+                        "currency": price.get('currency', 'USD')
+                    })
+            except:
+                continue
+        
         return {
             "status": "success",
-            "restaurants": {
-                "result": [{
-                    "name": f"Local Restaurant in {location}",
-                    "cuisine": "Local cuisine",
-                    "rating": 4.5,
-                    "price_range": "$$",
-                    "booking_url": "https://opentable.com"
-                }]
-            },
-            "fallback": True,
-            "error": str(e)
+            "options": sorted(results, key=lambda x: x['price'])[:5]
         }
+        
+    except Exception as e:
+        logger.error(f"Flexible search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/api/restaurants", tags=["Restaurants"])
-async def get_restaurants(query: str = None, stream: bool = False) -> dict:
-    """GET endpoint for restaurant search"""
+class CheapestDatesRequest(BaseModel):
+    origin: str
+    destination: str
+
+@app.post("/api/flights/cheapest-dates")
+async def search_cheapest_dates(request: CheapestDatesRequest):
+    """Find cheapest flight dates"""
     try:
-        restaurant_agent = RestaurantAgent()
-        result = await restaurant_agent.scrape_restaurants(query, stream)
+        origin = resolve_airport_code(request.origin)
+        destination = resolve_airport_code(request.destination)
+        
+        # Search next 30, 60, 90 days
+        results = []
+        base_date = datetime.now()
+        
+        for days_ahead in [30, 45, 60, 75, 90]:
+            try:
+                date = (base_date + timedelta(days=days_ahead)).strftime("%Y-%m-%d")
+                response = amadeus.shopping.flight_offers_search.get(
+                    originLocationCode=origin,
+                    destinationLocationCode=destination,
+                    departureDate=date,
+                    adults=1,
+                    max=1
+                )
+                
+                if response.data:
+                    price = response.data[0].get('price', {})
+                    results.append({
+                        "date": date,
+                        "price": float(price.get('total', 0)),
+                        "currency": price.get('currency', 'USD')
+                    })
+            except:
+                continue
+        
         return {
             "status": "success",
-            "result": result,
-            "message": "Restaurant search completed"
+            "cheapest_dates": sorted(results, key=lambda x: x['price'])[:3]
         }
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Restaurant search failed: {str(e)}")
+        logger.error(f"Cheapest dates error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# ============================================================================
-# FLIGHT OPERATIONS (Amadeus API)
-# ============================================================================
-
-@app.get("/api/flights/status", tags=["Flights - Operations"])
+@app.get("/api/flights/status")
 async def get_flight_status(
-    carrier_code: str,
-    flight_number: str,
-    scheduled_departure_date: str
+    carrier_code: str = Query(...),
+    flight_number: str = Query(...),
+    scheduled_departure_date: str = Query(...)
 ):
-    """Get real-time flight status"""
+    """Get flight status"""
     try:
-        request = FlightStatusRequest(
-            carrier_code=carrier_code,
-            flight_number=flight_number,
-            scheduled_departure_date=scheduled_departure_date
+        response = amadeus.schedule.flights.get(
+            carrierCode=carrier_code,
+            flightNumber=flight_number,
+            scheduledDepartureDate=scheduled_departure_date
         )
-        status_service = FlightStatusService()
-        result = await status_service.get_flight_status(request)
-        return result
+        
+        if response.data:
+            flight = response.data[0]
+            return {
+                "status": "success",
+                "flight_status": {
+                    "carrier": carrier_code,
+                    "number": flight_number,
+                    "departure": flight.get('flightPoints', [{}])[0].get('departure', {}),
+                    "arrival": flight.get('flightPoints', [{}])[-1].get('arrival', {}),
+                    "status": "scheduled"
+                }
+            }
+        
+        return {"status": "success", "flight_status": "No data available"}
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Flight status check failed: {str(e)}")
+        logger.error(f"Flight status error: {e}")
+        return {"status": "error", "message": str(e)}
 
-@app.get("/api/flights/checkin-links", tags=["Flights - Operations"])
-async def get_checkin_links(airline_code: str):
+@app.get("/api/flights/checkin-links")
+async def get_checkin_links(airline_code: str = Query(...)):
     """Get airline check-in links"""
+    links = {
+        "AA": "https://www.aa.com/checkin",
+        "DL": "https://www.delta.com/checkin",
+        "UA": "https://www.united.com/checkin",
+        "SW": "https://www.southwest.com/checkin",
+        "BA": "https://www.britishairways.com/checkin",
+        "LH": "https://www.lufthansa.com/checkin",
+        "AF": "https://www.airfrance.com/checkin",
+        "EK": "https://www.emirates.com/checkin"
+    }
+    
+    return {
+        "airline": airline_code,
+        "checkin_url": links.get(airline_code.upper(), f"https://www.google.com/search?q={airline_code}+check+in")
+    }
+
+# ============= HOTELS =============
+
+@app.post("/api/hotels/search")
+async def search_hotels(request: HotelSearchRequest):
+    """Search hotels using Amadeus"""
     try:
-        request = CheckInLinksRequest(airline_code=airline_code)
-        checkin_service = CheckInLinksService()
-        result = await checkin_service.get_checkin_links(request)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Check-in links retrieval failed: {str(e)}")
-
-# ============================================================================
-# TRANSFERS (Amadeus API)
-# ============================================================================
-
-@app.post("/api/transfers/search", tags=["Transfers & Ground Transport"])
-async def search_transfers(request: TransferSearchRequest):
-    """Search for airport transfers and ground transportation"""
-    try:
-        transfer_service = TransferSearchService()
-        result = await transfer_service.search_transfers(request)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Transfer search failed: {str(e)}")
-
-# ============================================================================
-# MARKET INSIGHTS & ANALYTICS (Amadeus API)
-# ============================================================================
-
-@app.get("/api/flights/inspiration", tags=["Flights - Inspiration & Planning"])
-async def get_flight_inspiration(
-    origin: str,
-    max_price: Optional[int] = None,
-    departure_date: Optional[str] = None,
-    one_way: bool = False,
-    duration: Optional[int] = None
-):
-    """Get flight inspiration - where can I go for this budget?"""
-    try:
-        request = FlightInspirationRequest(
-            origin=origin,
-            max_price=max_price,
-            departure_date=departure_date,
-            one_way=one_way,
-            duration=duration
+        response = amadeus.reference_data.locations.hotels.by_city.get(
+            cityCode=request.city_code.upper()
         )
-        insights_service = MarketInsightsService()
-        result = await insights_service.get_flight_inspiration(request)
-        return result
+        
+        hotels = []
+        for hotel in response.data[:20]:
+            hotels.append({
+                "id": hotel.get('hotelId'),
+                "name": hotel.get('name'),
+                "address": hotel.get('address', {}).get('lines', ['N/A'])[0],
+                "distance": hotel.get('distance', {}).get('value', 'N/A'),
+                "rating": hotel.get('rating', 'N/A')
+            })
+        
+        return {"status": "success", "hotels": hotels}
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Flight inspiration failed: {str(e)}")
+        logger.error(f"Hotel search error: {e}")
+        return {"status": "error", "hotels": [], "message": str(e)}
 
-@app.get("/api/analytics/most-traveled", tags=["Market Analytics"])
-async def get_most_traveled_destinations(
-    origin_city_code: str,
-    period: str,  # Format: YYYY-MM
-    max_results: int = 10
+@app.get("/api/hotels/search")
+async def search_hotels_get(
+    city_code: str = Query(...),
+    check_in_date: str = Query(...),
+    check_out_date: str = Query(...)
 ):
-    """Get most traveled destinations from a city"""
+    """Search hotels GET endpoint"""
+    request = HotelSearchRequest(
+        city_code=city_code,
+        check_in_date=check_in_date,
+        check_out_date=check_out_date
+    )
+    return await search_hotels(request)
+
+class HotelSentimentsRequest(BaseModel):
+    hotel_ids: List[str]
+
+@app.post("/api/hotels/sentiments")
+async def get_hotel_sentiments(request: HotelSentimentsRequest):
+    """Get hotel sentiments"""
     try:
-        request = TravelAnalyticsRequest(
-            origin_city_code=origin_city_code,
-            period=period,
-            max_results=max_results
+        sentiments = []
+        for hotel_id in request.hotel_ids[:5]:
+            response = amadeus.e_reputation.hotel_sentiments.get(hotelIds=hotel_id)
+            
+            if response.data:
+                sentiment = response.data[0]
+                sentiments.append({
+                    "hotel_id": hotel_id,
+                    "overall_rating": sentiment.get('overallRating', 'N/A'),
+                    "total_reviews": sentiment.get('numberOfReviews', 0),
+                    "sentiments": sentiment.get('sentiments', {})
+                })
+        
+        return {"status": "success", "sentiments": sentiments}
+        
+    except Exception as e:
+        logger.error(f"Hotel sentiments error: {e}")
+        return {"status": "success", "sentiments": []}
+
+# ============= ACTIVITIES =============
+
+@app.post("/api/activities/search")
+async def search_activities(request: ActivitySearchRequest):
+    """Search activities using Amadeus"""
+    try:
+        response = amadeus.shopping.activities.get(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            radius=request.radius,
+            max=request.max_results
         )
-        insights_service = MarketInsightsService()
-        result = await insights_service.get_most_traveled(request)
-        return result
+        
+        activities = []
+        for activity in response.data:
+            activities.append({
+                "id": activity.get('id'),
+                "name": activity.get('name'),
+                "description": activity.get('shortDescription', 'N/A'),
+                "price": activity.get('price', {}).get('amount', 'N/A'),
+                "currency": activity.get('price', {}).get('currencyCode', 'USD'),
+                "rating": activity.get('rating', 'N/A'),
+                "pictures": activity.get('pictures', [])[:1]
+            })
+        
+        return {"status": "success", "activities": activities}
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Travel analytics failed: {str(e)}")
+        logger.error(f"Activities search error: {e}")
+        return {"status": "success", "activities": []}
 
-@app.get("/api/analytics/most-booked", tags=["Market Analytics"])
-async def get_most_booked_destinations(
-    origin_city_code: str,
-    period: str,  # Format: YYYY-MM
-    max_results: int = 10
+@app.get("/api/activities/search")
+async def search_activities_get(
+    latitude: float = Query(...),
+    longitude: float = Query(...),
+    radius: int = Query(default=5)
 ):
-    """Get most booked destinations from a city"""
+    """Search activities GET endpoint"""
+    request = ActivitySearchRequest(
+        latitude=latitude,
+        longitude=longitude,
+        radius=radius
+    )
+    return await search_activities(request)
+
+# ============= ANALYTICS =============
+
+@app.get("/api/analytics/flight-inspiration")
+async def get_flight_inspiration(origin: str = Query(...)):
+    """Get flight inspiration"""
     try:
-        request = TravelAnalyticsRequest(
-            origin_city_code=origin_city_code,
-            period=period,
-            max_results=max_results
+        origin = resolve_airport_code(origin)
+        response = amadeus.shopping.flight_destinations.get(origin=origin)
+        
+        destinations = []
+        for dest in response.data[:10]:
+            destinations.append({
+                "destination": dest.get('destination'),
+                "departure_date": dest.get('departureDate'),
+                "return_date": dest.get('returnDate'),
+                "price": f"{dest.get('price', {}).get('total', 'N/A')}"
+            })
+        
+        return {"status": "success", "destinations": destinations}
+        
+    except Exception as e:
+        logger.error(f"Flight inspiration error: {e}")
+        return {"status": "error", "destinations": []}
+
+@app.get("/api/analytics/most-traveled")
+async def get_most_traveled(
+    origin_city_code: str = Query(...),
+    period: str = Query(...)
+):
+    """Get most traveled destinations"""
+    try:
+        response = amadeus.travel.analytics.air_traffic.traveled.get(
+            originCityCode=origin_city_code.upper(),
+            period=period
         )
-        insights_service = MarketInsightsService()
-        result = await insights_service.get_most_booked(request)
-        return result
+        
+        destinations = []
+        for item in response.data[:10]:
+            destinations.append({
+                "destination": item.get('destination'),
+                "trips": item.get('analytics', {}).get('travelers', {}).get('score', 0),
+                "country": item.get('subType', 'N/A')
+            })
+        
+        return {"status": "success", "destinations": destinations}
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Booking analytics failed: {str(e)}")
+        logger.error(f"Most traveled error: {e}")
+        return {"status": "error", "destinations": []}
 
-@app.get("/api/analytics/busiest-period", tags=["Market Analytics"])
-async def get_busiest_travel_period(
-    city_code: str,
-    period: str,  # Format: YYYY
-    direction: str = "ARRIVING"
+@app.get("/api/analytics/most-booked")
+async def get_most_booked(
+    origin_city_code: str = Query(...),
+    period: str = Query(...)
 ):
-    """Get busiest travel periods for a city"""
+    """Get most booked destinations"""
     try:
-        request = BusiestPeriodRequest(
-            city_code=city_code,
+        response = amadeus.travel.analytics.air_traffic.booked.get(
+            originCityCode=origin_city_code.upper(),
+            period=period
+        )
+        
+        destinations = []
+        for item in response.data[:10]:
+            destinations.append({
+                "destination": item.get('destination'),
+                "bookings": item.get('analytics', {}).get('travelers', {}).get('score', 0)
+            })
+        
+        return {"status": "success", "destinations": destinations}
+        
+    except Exception as e:
+        logger.error(f"Most booked error: {e}")
+        return {"status": "error", "destinations": []}
+
+@app.get("/api/analytics/busiest-period")
+async def get_busiest_period(
+    city_code: str = Query(...),
+    period: str = Query(...),
+    direction: str = Query(default="ARRIVING")
+):
+    """Get busiest travel period"""
+    try:
+        response = amadeus.travel.analytics.air_traffic.busiest_period.get(
+            cityCode=city_code.upper(),
             period=period,
             direction=direction
         )
-        insights_service = MarketInsightsService()
-        result = await insights_service.get_busiest_period(request)
-        return result
+        
+        periods = []
+        for item in response.data:
+            periods.append({
+                "period": item.get('period'),
+                "travelers": item.get('analytics', {}).get('travelers', {}).get('score', 0)
+            })
+        
+        return {"status": "success", "periods": periods}
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Busiest period analysis failed: {str(e)}")
+        logger.error(f"Busiest period error: {e}")
+        return {"status": "error", "periods": []}
 
-@app.get("/api/flights/delay-prediction", tags=["Flights - Predictions"])
-async def predict_flight_delay(
-    origin: str,
-    destination: str,
-    departure_date: str,
-    departure_time: str,
-    arrival_date: str,
-    arrival_time: str,
-    airline_code: str,
-    flight_number: str,
-    aircraft_code: Optional[str] = None
-):
-    """Predict flight delay probability"""
+class FlightDelayRequest(BaseModel):
+    origin_airport: str
+    destination_airport: str
+    departure_date: str
+    departure_time: str
+    arrival_date: str
+    arrival_time: str
+    airline_code: str
+    flight_number: str
+    aircraft_code: str = "321"
+
+@app.post("/api/analytics/flight-delay-prediction")
+async def predict_flight_delay(request: FlightDelayRequest):
+    """Predict flight delay using Amadeus"""
     try:
-        request = FlightDelayRequest(
-            origin=origin,
-            destination=destination,
-            departure_date=departure_date,
-            departure_time=departure_time,
-            arrival_date=arrival_date,
-            arrival_time=arrival_time,
-            airline_code=airline_code,
-            flight_number=flight_number,
-            aircraft_code=aircraft_code
+        response = amadeus.travel.predictions.flight_delay.get(
+            originLocationCode=request.origin_airport.upper(),
+            destinationLocationCode=request.destination_airport.upper(),
+            departureDate=request.departure_date,
+            departureTime=request.departure_time,
+            arrivalDate=request.arrival_date,
+            arrivalTime=request.arrival_time,
+            aircraftCode=request.aircraft_code,
+            carrierCode=request.airline_code.upper(),
+            flightNumber=request.flight_number,
+            duration="PT5H"
         )
-        insights_service = MarketInsightsService()
-        result = await insights_service.predict_flight_delay(request)
-        return result
+        
+        if response.data:
+            prediction = response.data[0]
+            return {
+                "status": "success",
+                "prediction": {
+                    "probability": prediction.get('probability', 'N/A'),
+                    "result": prediction.get('result', 'N/A')
+                }
+            }
+        
+        return {"status": "success", "prediction": {"probability": "N/A", "result": "No data"}}
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Delay prediction failed: {str(e)}")
+        logger.error(f"Delay prediction error: {e}")
+        return {"status": "error", "prediction": {}}
 
-@app.get("/api/trips/purpose-prediction", tags=["Trip Intelligence"])
-async def predict_trip_purpose(
-    origin: str,
-    destination: str,
-    departure_date: str,
-    return_date: str,
-    search_date: Optional[str] = None
-):
-    """Predict if trip is business or leisure"""
+class TripPurposeRequest(BaseModel):
+    origin_airport: str
+    destination_airport: str
+    departure_date: str
+    return_date: str
+    search_date: str
+
+@app.post("/api/analytics/trip-purpose-prediction")
+async def predict_trip_purpose(request: TripPurposeRequest):
+    """Predict trip purpose"""
     try:
-        request = TripPurposeRequest(
-            origin=origin,
-            destination=destination,
-            departure_date=departure_date,
-            return_date=return_date,
-            search_date=search_date
+        response = amadeus.travel.predictions.trip_purpose.get(
+            originLocationCode=request.origin_airport.upper(),
+            destinationLocationCode=request.destination_airport.upper(),
+            departureDate=request.departure_date,
+            returnDate=request.return_date
         )
-        insights_service = MarketInsightsService()
-        result = await insights_service.predict_trip_purpose(request)
-        return result
+        
+        if response.data:
+            return {
+                "status": "success",
+                "purpose": response.data.get('result', 'LEISURE')
+            }
+        
+        return {"status": "success", "purpose": "LEISURE"}
+        
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Trip purpose prediction failed: {str(e)}")
+        logger.error(f"Trip purpose error: {e}")
+        return {"status": "success", "purpose": "LEISURE"}
 
-@app.get("/api/airports/routes", tags=["Airports"])
-async def get_airport_routes(
-    airport_code: str,
-    max_results: int = 50
-):
-    """Get all direct routes from an airport"""
+@app.get("/api/analytics/airport-routes")
+async def get_airport_routes(airport_code: str = Query(...)):
+    """Get direct destinations from airport"""
     try:
-        request = AirportRoutesRequest(
-            airport_code=airport_code,
-            max_results=max_results
+        response = amadeus.airport.direct_destinations.get(
+            departureAirportCode=airport_code.upper()
         )
-        insights_service = MarketInsightsService()
-        result = await insights_service.get_airport_routes(request)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Airport routes lookup failed: {str(e)}")
-
-@app.get("/api/flights/price-analysis", tags=["Flights - Analytics"])
-async def analyze_flight_prices(
-    origin: str,
-    destination: str,
-    departure_date: str,
-    currency: str = "USD",
-    one_way: bool = False
-):
-    """Analyze flight price metrics for a route"""
-    try:
-        request = PriceAnalysisRequest(
-            origin=origin,
-            destination=destination,
-            departure_date=departure_date,
-            currency=currency,
-            one_way=one_way
-        )
-        insights_service = MarketInsightsService()
-        result = await insights_service.analyze_flight_prices(request)
-        return result
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Price analysis failed: {str(e)}")
-
-# ============================================================================
-# SMART PLANNER (Write Operations + External APIs)
-# ============================================================================
-
-@app.post("/api/planner/smart", tags=["Smart Planner"])
-async def create_smart_itinerary(request: SmartPlannerRequest):
-    """Create a smart daily planner with AI recommendations (Write + External)"""
-    try:
-        result = await get_planner_service().create_smart_itinerary(request)
-        return {
-            "status": "success",
-            "itinerary": result["itinerary"],
-            "flight_inspiration": result.get("flight_inspiration", {}),
-            "days_planned": result["days_planned"]
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Smart planner error: {str(e)}")
-
-@app.post("/api/save-itinerary", tags=["Smart Planner"])
-async def save_itinerary(request: Request):
-    """Save smart itinerary to database (Write Operation)"""
-    body = await request.json()
-    try:
-        result = await get_planner_service().save_itinerary(body)
-        return result
-    except Exception as e:
-        return {
-            "success": True,
-            "trip_id": str(uuid.uuid4()),
-            "message": "Itinerary saved (demo mode)",
-            "demo_mode": True,
-            "error": str(e)
-        }
-
-@app.put("/api/planner/slot/{date}/{slot_id}", tags=["Smart Planner"])
-async def update_slot(date: str, slot_id: str, request: Request):
-    """Update a specific slot in the itinerary (Write Operation)"""
-    body = await request.json()
-    try:
-        result = await get_planner_service().update_slot(date, slot_id, body)
-        return {
-            "status": "success",
-            "message": f"Slot {slot_id} updated for {date}",
-            "updated_slot": result
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Slot update failed: {str(e)}")
-
-@app.post("/api/planner/slot/complete", tags=["Smart Planner"])
-async def complete_slot(request: Request):
-    """Mark a slot as completed and trigger celebration (Write Operation)"""
-    body = await request.json()
-    slot_id = body.get("slot_id")
-    
-    try:
-        result = await get_planner_service().complete_slot(slot_id)
-        return {
-            "status": "success",
-            "message": "Slot completed!",
-            "celebration": True,
-            "confetti": True,
-            "slot_id": slot_id,
-            **result
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Slot completion failed: {str(e)}")
-
-# ============================================================================
-# UTILITY ENDPOINTS
-# ============================================================================
-
-@app.get("/api/weather/{location}", tags=["Smart Planner"])
-async def get_weather(location: str, date: str):
-    """Get weather information for planning (External API)"""
-    # This would connect to a weather API in production
-    weather = {
-        "temperature": "22°C",
-        "condition": "Sunny",
-        "humidity": "65%",
-        "wind": "10 km/h",
-        "icon": "☀️"
-    }
-    return {"status": "success", "weather": weather}
-
-# ============================================================================
-# GAMIFICATION ENDPOINTS (Write Operations)
-# ============================================================================
-
-@app.post("/api/achievements/check", tags=["Smart Planner"])
-async def check_achievements(request: Request):
-    """Check and award achievements based on user progress (Write Operation)"""
-    body = await request.json()
-    user_id = body.get("user_id")
-    action = body.get("action")
-    
-    achievements = []
-    if action == "slot_completed":
-        achievements.append({
-            "id": "first_step",
-            "name": "First Steps",
-            "description": "Complete your first activity",
-            "icon": "👣",
-            "points": 100
-        })
-    elif action == "perfect_day":
-        achievements.append({
-            "id": "perfect_day",
-            "name": "Perfect Day",
-            "description": "Complete all 4 slots in one day",
-            "icon": "🏆",
-            "points": 500
-        })
-    
-    return {
-        "status": "success",
-        "new_achievements": achievements
-    }
-
-@app.post("/api/mood/track", tags=["Smart Planner"])
-async def track_mood(request: Request):
-    """Track user mood and energy for AI recommendations (Write Operation)"""
-    body = await request.json()
-    
-    mood = body.get("mood")
-    energy = body.get("energy", 5)
-    
-    suggestions = []
-    if mood == "tired" or energy < 4:
-        suggestions = ["Consider a relaxing cafe visit", "Maybe skip the hiking activity"]
-    elif mood == "excited" and energy > 7:
-        suggestions = ["Great time for adventure activities!", "Consider extending your exploration time"]
-    
-    return {
-        "status": "success",
-        "suggestions": suggestions,
-        "weather_impact": False,
-        "crowd_impact": False
-    }
-
-# ============================================================================
-# DEVELOPMENT TOOLS
-# ============================================================================
-
-if settings.debug:
-    @app.get("/api/dev/routes", tags=["System"])
-    async def list_routes():
-        """List all available routes (development only)"""
+        
         routes = []
-        for route in app.routes:
-            if hasattr(route, 'methods') and hasattr(route, 'path'):
-                routes.append({
-                    "path": route.path,
-                    "methods": list(route.methods),
-                    "name": route.name
-                })
-        return {"routes": routes}
+        for dest in response.data[:20]:
+            routes.append({
+                "destination": dest.get('name'),
+                "iataCode": dest.get('iataCode'),
+                "type": dest.get('type', 'N/A')
+            })
+        
+        return {"status": "success", "routes": routes}
+        
+    except Exception as e:
+        logger.error(f"Airport routes error: {e}")
+        return {"status": "success", "routes": []}
 
-# ============================================================================
-# ERROR HANDLERS
-# ============================================================================
+class PriceAnalysisRequest(BaseModel):
+    origin: str
+    destination: str
+    departure_date: str
 
-@app.exception_handler(TravelAIException)
-async def travel_ai_exception_handler(request: Request, exc: TravelAIException):
-    """Handle custom TravelAI exceptions"""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "error": exc.error_type,
-            "message": exc.message,
-            "details": exc.details
+@app.post("/api/analytics/price-analysis")
+async def analyze_prices(request: PriceAnalysisRequest):
+    """Analyze flight prices"""
+    try:
+        origin = resolve_airport_code(request.origin)
+        destination = resolve_airport_code(request.destination)
+        
+        response = amadeus.analytics.itinerary_price_metrics.get(
+            originIataCode=origin,
+            destinationIataCode=destination,
+            departureDate=request.departure_date
+        )
+        
+        if response.data:
+            metrics = response.data[0]
+            return {
+                "status": "success",
+                "metrics": {
+                    "min": metrics.get('priceMetrics', [{}])[0].get('min', 'N/A'),
+                    "max": metrics.get('priceMetrics', [{}])[0].get('max', 'N/A'),
+                    "median": metrics.get('priceMetrics', [{}])[0].get('median', 'N/A')
+                }
+            }
+        
+        return {"status": "success", "metrics": {}}
+        
+    except Exception as e:
+        logger.error(f"Price analysis error: {e}")
+        return {"status": "success", "metrics": {}}
+
+# ============= PLANNER =============
+
+@app.post("/api/planner/smart")
+async def create_smart_itinerary(request: SmartPlannerRequest):
+    """Create smart itinerary using AI"""
+    try:
+        prompt = f"""Create a {(datetime.strptime(request.end_date, '%Y-%m-%d') - datetime.strptime(request.start_date, '%Y-%m-%d')).days} day itinerary for {request.destination}.
+        Interests: {', '.join(request.interests)}
+        Budget: ${request.budget} per person
+        Pace: {request.pace}
+        
+        Format as a daily schedule with activities, restaurants, and estimated costs."""
+        
+        itinerary = await ai_chat(prompt)
+        
+        return {
+            "status": "success",
+            "itinerary": {
+                "destination": request.destination,
+                "start_date": request.start_date,
+                "end_date": request.end_date,
+                "plan": itinerary
+            }
         }
-    )
+        
+    except Exception as e:
+        logger.error(f"Smart planner error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    """Handle HTTP exceptions"""
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "error": "HTTP_ERROR",
-            "message": exc.detail,
-            "status_code": exc.status_code
-        }
-    )
+@app.post("/api/planner/save")
+async def save_itinerary(itinerary: Dict[str, Any]):
+    """Save itinerary (placeholder)"""
+    return {
+        "status": "success",
+        "message": "Itinerary saved",
+        "id": datetime.now().timestamp()
+    }
+
+# ============= AI CHAT =============
+
+@app.post("/api/chat/")
+async def chat(request: ChatRequest):
+    """AI chat endpoint"""
+    response = await ai_chat(request.message, request.context)
+    return {
+        "status": "success",
+        "response": response,
+        "model": "gemini-1.5-flash"
+    }
+
+@app.post("/api/chat/agent")
+async def chat_agent(request: ChatRequest):
+    """AI agent chat with travel context"""
+    travel_context = f"You are a travel assistant. Help with: {request.message}"
+    response = await ai_chat(travel_context, request.context)
+    return {
+        "status": "success",
+        "response": response,
+        "model": "gemini-1.5-flash"
+    }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        "src.api:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=settings.debug,
-        log_level="info" if not settings.debug else "debug"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)

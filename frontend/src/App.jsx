@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Link, useLocation, useParams } 
 import { motion } from 'framer-motion';
 import { Home, Calendar, Search, FileText, Brain, Map, Trophy, Users, Heart, BookOpen, Cloud, Camera } from 'lucide-react';
 import { AuthWrapper } from './components/AuthWrapper';
+import { ConfettiProvider } from './contexts/ConfettiContext';
+import ConfettiToggle from './components/ConfettiToggle';
 import Landing from './components/Landing';
 import Itinerary from './components/Itinerary';
 import SmartPlanner from './components/SmartPlanner';
@@ -202,10 +204,11 @@ function AchievementsPage() {
 function App() {
   return (
     <AuthWrapper>
-      <Router>
-        <div className="min-h-screen bg-gray-50">
-          <Navigation />
-          <Routes>
+      <ConfettiProvider>
+        <Router>
+          <div className="min-h-screen bg-gray-50">
+            <Navigation />
+            <Routes>
             {/* Main Pages */}
             <Route path="/" element={<Landing />} />
             <Route path="/planner" element={<SmartPlanner />} />
@@ -238,9 +241,12 @@ function App() {
           
           {/* Global AI Chat - appears on all pages except landing */}
           {window.location.pathname !== '/' && <AIChat />}
+          
+          <ConfettiToggle />
         </div>
       </Router>
-    </AuthWrapper>
+    </ConfettiProvider>
+  </AuthWrapper>
   );
 }
 

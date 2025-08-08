@@ -3,7 +3,7 @@ import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Trophy, Star, Award, Target, Users, Compass, Sparkles, Lock, TrendingUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import confetti from 'canvas-confetti';
+import { celebrationConfetti } from '../utils/confettiUtils';
 
 const achievementCategories = [
   { id: 'completion', name: 'Completion', icon: Target, color: 'bg-green-500' },
@@ -34,11 +34,7 @@ function AchievementCard({ achievement, onClick, showProgress = true }) {
   const handleClick = () => {
     if (achievement.completed) {
       // Trigger celebration for completed achievements
-      confetti({
-        particleCount: 50,
-        spread: 60,
-        origin: { y: 0.6 }
-      });
+      celebrationConfetti();
     }
     onClick(achievement);
   };
@@ -298,11 +294,7 @@ export default function Achievements() {
     
     if (recentAchievement && recentAchievement._id !== newAchievementAlert?.id) {
       setNewAchievementAlert(recentAchievement);
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 }
-      });
+      celebrationConfetti();
       
       // Auto-hide after 5 seconds
       setTimeout(() => setNewAchievementAlert(null), 5000);

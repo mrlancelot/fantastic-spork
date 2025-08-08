@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
 import confetti from 'canvas-confetti';
+import { useConfetti } from '../../contexts/ConfettiContext';
 
 export default function ConfettiEffect({ show, duration = 3000 }) {
+  const { confettiEnabled } = useConfetti();
+  
   useEffect(() => {
-    if (!show) return;
+    if (!show || !confettiEnabled) return;
 
     const runConfetti = () => {
       // Burst from center

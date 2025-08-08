@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Trophy, Star, Award, MapPin, Zap } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { celebrationConfetti } from '../utils/confettiUtils';
 
 const LEVEL_COLORS = {
   1: '#4ade80', // green-400
@@ -227,11 +227,7 @@ export default function CartoonMapJourney({ tripId }) {
     setIsAnimating(true);
     
     // Confetti explosion
-    confetti({
-      particleCount: 150,
-      spread: 100,
-      origin: { y: 0.4 }
-    });
+    celebrationConfetti();
     
     setTimeout(() => setIsAnimating(false), 2000);
   };

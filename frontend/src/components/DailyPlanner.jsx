@@ -6,7 +6,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
 import { Plus, Clock, MapPin, Palette, Check, Play, X } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { triggerConfetti } from '../utils/confettiUtils';
 
 const timeSlots = [
   { id: 'morning', name: 'Morning', time: '6:00-10:00', color: 'bg-orange-100 border-orange-200', icon: '🌅' },
@@ -53,11 +53,7 @@ function SortableSlot({ slot, onComplete, onEdit, onDelete }) {
   };
 
   const triggerCelebration = () => {
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
+    triggerConfetti();
   };
 
   const handleComplete = () => {

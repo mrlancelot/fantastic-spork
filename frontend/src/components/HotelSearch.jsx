@@ -44,8 +44,8 @@ const HotelSearch = () => {
       setHotels(result.hotels);
 
       // Get sentiment analysis for hotels
-      if (result.hotels?.data?.length > 0) {
-        const hotelIds = result.hotels.data.slice(0, 5).map(hotel => hotel.hotel?.hotelId).filter(Boolean);
+      if (result.hotels?.length > 0) {
+        const hotelIds = result.hotels.slice(0, 5).map(hotel => hotel.id).filter(Boolean);
         if (hotelIds.length > 0) {
           try {
             const sentimentResult = await api.hotels.getSentiments(hotelIds);
@@ -197,10 +197,10 @@ const HotelSearch = () => {
           >
             <h3 className="text-xl font-bold text-gray-800">Hotel Options</h3>
             
-            {hotels.data?.map((hotel, index) => {
-              const hotelInfo = hotel.hotel;
-              const offers = hotel.offers || [];
-              const sentiment = sentiments[hotelInfo?.hotelId];
+            {hotels?.map((hotel, index) => {
+              const hotelInfo = hotel;
+              const offers = [];
+              const sentiment = sentiments[hotel?.id];
               
               return (
                 <motion.div
@@ -216,14 +216,18 @@ const HotelSearch = () => {
                         <Building2 className="w-6 h-6 text-purple-600" />
                         <div>
                           <h4 className="font-semibold text-gray-800 text-lg">
-                            {hotelInfo?.name || 'Hotel Name'}
+                            {hotelInfo?.name}
                           </h4>
                           <div className="flex items-center gap-2">
-                            {renderStars(hotelInfo?.rating)}
                             <span className="text-sm text-gray-600">
-                              {hotelInfo?.rating || 'Not rated'}
+                              {hotelInfo?.address}
                             </span>
                           </div>
+                          {hotelInfo?.distance && (
+                            <span className="text-xs text-gray-500">
+                              {hotelInfo.distance} from center
+                            </span>
+                          )}
                         </div>
                       </div>
 
@@ -262,38 +266,15 @@ const HotelSearch = () => {
                     </div>
                     
                     <div className="text-right ml-4">
-                      {offers.length > 0 && (
-                        <>
-                          <p className="text-2xl font-bold text-green-600">
-                            {offers[0].price?.currency} {offers[0].price?.total}
-                          </p>
-                          <p className="text-sm text-gray-600">per night</p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {offers[0].room?.description?.text || 'Standard Room'}
-                          </p>
-                        </>
-                      )}
+                      <p className="text-lg font-semibold text-gray-700">
+                        Rating: {hotelInfo?.rating}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        Hotel ID: {hotelInfo?.id}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Room Options */}
-                  {offers.length > 1 && (
-                    <div className="border-t pt-4 mt-4">
-                      <h5 className="font-medium text-gray-700 mb-2">Other Room Options:</h5>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {offers.slice(1, 3).map((offer, i) => (
-                          <div key={i} className="p-2 bg-gray-50 rounded-lg">
-                            <p className="text-sm font-medium">
-                              {offer.room?.description?.text || `Room Option ${i + 2}`}
-                            </p>
-                            <p className="text-sm text-green-600">
-                              {offer.price?.currency} {offer.price?.total}/night
-                            </p>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="flex gap-3 mt-4">
                     <motion.button
@@ -315,7 +296,7 @@ const HotelSearch = () => {
               );
             })}
             
-            {(!hotels.data || hotels.data.length === 0) && (
+            {(!hotels || hotels.length === 0) && (
               <div className="bg-white rounded-xl shadow-lg p-8 text-center">
                 <Building2 className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-600 mb-2">No hotels found</h3>

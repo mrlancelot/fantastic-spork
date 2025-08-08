@@ -17,7 +17,8 @@ const SmartPlanner = () => {
     startDate: '',
     endDate: '',
     travelers: 1,
-    preferences: []
+    interests: [],
+    budget: 1000
   });
 
   const [itinerary, setItinerary] = useState(null);
@@ -42,15 +43,21 @@ const SmartPlanner = () => {
     setError(null);
 
     try {
-      const result = await api.createSmartItinerary({
-        destination: plannerData.destination,
-        start_date: plannerData.startDate,
-        end_date: plannerData.endDate,
-        travelers: plannerData.travelers,
-        preferences: plannerData.preferences
-      });
+      const result = await api.smartPlanner.create(
+        plannerData.destination,
+        plannerData.startDate,
+        plannerData.endDate,
+        plannerData.travelers,
+        plannerData.interests,
+        plannerData.budget
+      );
 
-      setItinerary(result.itinerary);
+      // The API returns the itinerary data directly, not nested
+      if (result && result.status === 'success') {
+        setItinerary(result);
+      } else {
+        throw new Error('Failed to generate itinerary');
+      }
     } catch (error) {
       setError(`Failed to create itinerary: ${error.message}`);
       console.error('Itinerary creation failed:', error);
@@ -243,10 +250,12 @@ const SmartPlanner = () => {
                   <Calendar className="w-4 h-4" />
                   {itinerary.start_date} to {itinerary.end_date}
                 </span>
-                <span className="flex items-center gap-1">
-                  <Users className="w-4 h-4" />
-                  {itinerary.travelers} traveler{itinerary.travelers > 1 ? 's' : ''}
-                </span>
+                {plannerData.travelers && (
+                  <span className="flex items-center gap-1">
+                    <Users className="w-4 h-4" />
+                    {plannerData.travelers} traveler{plannerData.travelers > 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
             </motion.div>
 
@@ -263,7 +272,23 @@ const SmartPlanner = () => {
               />
             </motion.div>
 
-            {/* Daily Plans */}
+            {/* Itinerary Plan Display */}
+            {itinerary.plan && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-2xl shadow-lg p-8"
+              >
+                <h3 className="text-xl font-bold text-gray-800 mb-4">Your Itinerary</h3>
+                <div className="prose prose-lg max-w-none">
+                  <div className="whitespace-pre-wrap text-gray-700">
+                    {itinerary.plan}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Daily Plans (if available) */}
             <div className="space-y-6">
               {itinerary.daily_plans?.map((day, dayIndex) => (
                 <motion.div

@@ -15,6 +15,7 @@ import {
   Info
 } from 'lucide-react';
 
+// Note: Weather API endpoint not yet implemented in backend
 const API_BASE = import.meta.env.DEV ? 'http://localhost:8000' : '';
 
 const weatherIcons = {
@@ -354,40 +355,11 @@ export default function WeatherPlanning({ location, date, activities }) {
       setError(null);
 
       try {
-        // Fetch current weather
-        const response = await fetch(`${API_BASE}/api/weather/${encodeURIComponent(location)}?date=${date}`);
-        
-        if (!response.ok) throw new Error('Weather data unavailable');
-        
-        const data = await response.json();
-        
-        // Mock weather data for demo
-        const mockWeather = {
-          temperature: '22°C',
-          condition: 'Sunny',
-          humidity: '65%',
-          wind: '10 km/h',
-          icon: '☀️'
-        };
+        // Weather API not yet implemented in backend
+        setError('Weather service is currently unavailable. Please check back later.');
 
-        setWeatherData(mockWeather);
-
-        // Mock 5-day forecast
-        const mockForecast = [];
-        for (let i = 0; i < 5; i++) {
-          const forecastDate = new Date(date);
-          forecastDate.setDate(forecastDate.getDate() + i);
-          
-          mockForecast.push({
-            date: forecastDate.toISOString().split('T')[0],
-            temperature: `${20 + Math.random() * 10}°C`,
-            condition: i === 0 ? 'Sunny' : ['Sunny', 'Cloudy', 'Rain'][Math.floor(Math.random() * 3)],
-            humidity: `${60 + Math.random() * 20}%`,
-            wind: `${5 + Math.random() * 15} km/h`
-          });
-        }
-        
-        setForecast(mockForecast);
+        // Forecast will be available once weather service is implemented
+        setForecast([]);
       } catch (err) {
         setError(err.message);
       } finally {

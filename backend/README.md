@@ -108,7 +108,7 @@ python main.py
 
 - **Framework**: FastAPI 0.115.6 with async/await
 - **AI/LLM Integration**: 
-  - OpenRouter (GPT-4o-mini) for dynamic lookups
+  - OpenRouter (GPT-5-mini) for dynamic lookups
   - LlamaIndex for agent orchestration
   - Google Gemini for fallback
 - **Travel Data**: Amadeus Self-Service APIs (v12.0.0)
@@ -273,7 +273,7 @@ waypoint-be/
 │  └─────────────┘ └──────────────┘          │
 ├─────────────────────────────────────────────┤
 │           AI Lookup Service                  │
-│      (OpenRouter GPT-4o-mini)               │
+│      (OpenRouter GPT-5-mini)               │
 ├─────────────────────────────────────────────┤
 │          External APIs                       │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐   │

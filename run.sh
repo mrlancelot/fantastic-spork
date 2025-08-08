@@ -54,9 +54,9 @@ run_backend() {
         touch venv/.deps_installed
     fi
     
-    # Run the FastAPI server using the new main.py
+    # Run the FastAPI server directly
     echo -e "${GREEN}Starting FastAPI server on port 8000...${NC}"
-    python -m src.main
+    python -m uvicorn src.api:app --reload --host 0.0.0.0 --port 8000
 }
 
 # Function to run Convex

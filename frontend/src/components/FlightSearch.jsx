@@ -214,7 +214,7 @@ const FlightSearch = () => {
           >
             <h3 className="text-xl font-bold text-gray-800">Flight Options</h3>
             
-            {flights.data?.map((flight, index) => (
+            {flights?.map((flight, index) => (
               <motion.div
                 key={index}
                 initial={{ opacity: 0, x: -20 }}
@@ -229,64 +229,56 @@ const FlightSearch = () => {
                     </div>
                     <div>
                       <h4 className="font-semibold text-gray-800">
-                        {flight.validatingAirlineCodes?.[0] || 'Airline'}
+                        {flight.airline} - Flight {flight.flight_number}
                       </h4>
                       <p className="text-sm text-gray-600">
-                        {flight.itineraries?.[0]?.segments?.length || 0} stop(s)
+                        {flight.stops || 0} stop(s)
                       </p>
                     </div>
                   </div>
                   
                   <div className="text-right">
                     <p className="text-2xl font-bold text-green-600">
-                      {flight.price?.currency} {flight.price?.total}
+                      {flight.price}
                     </p>
                     <p className="text-sm text-gray-600">per person</p>
                   </div>
                 </div>
 
                 {/* Flight Details */}
-                {flight.itineraries?.map((itinerary, itinIndex) => (
-                  <div key={itinIndex} className="mb-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-4">
-                        <Clock className="w-4 h-4 text-gray-600" />
-                        <div>
-                          <p className="font-medium">
-                            {new Date(itinerary.segments?.[0]?.departure?.at).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {itinerary.segments?.[0]?.departure?.iataCode}
-                          </p>
-                        </div>
-                      </div>
-                      
-                      <div className="flex-1 text-center">
-                        <p className="text-sm text-gray-600">
-                          {itinerary.duration?.replace('PT', '').replace('H', 'h ').replace('M', 'm')}
+                <div className="mb-4">
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-4">
+                      <Clock className="w-4 h-4 text-gray-600" />
+                      <div>
+                        <p className="font-medium">
+                          {flight.departure_time}
                         </p>
-                        <div className="w-full h-1 bg-gray-300 rounded-full mt-1"></div>
+                        <p className="text-sm text-gray-600">
+                          {searchData.origin.toUpperCase()}
+                        </p>
                       </div>
-                      
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="font-medium">
-                            {new Date(itinerary.segments?.[itinerary.segments.length - 1]?.arrival?.at).toLocaleTimeString([], {
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                          <p className="text-sm text-gray-600">
-                            {itinerary.segments?.[itinerary.segments.length - 1]?.arrival?.iataCode}
-                          </p>
-                        </div>
+                    </div>
+                    
+                    <div className="flex-1 text-center">
+                      <p className="text-sm text-gray-600">
+                        Duration: {flight.duration}
+                      </p>
+                      <div className="w-full h-1 bg-gray-300 rounded-full mt-1"></div>
+                    </div>
+                    
+                    <div className="flex items-center gap-4">
+                      <div className="text-right">
+                        <p className="font-medium">
+                          {flight.arrival_time}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          {searchData.destination.toUpperCase()}
+                        </p>
                       </div>
                     </div>
                   </div>
-                ))}
+                </div>
 
                 <motion.button
                   whileHover={{ scale: 1.02 }}
@@ -298,7 +290,7 @@ const FlightSearch = () => {
               </motion.div>
             ))}
             
-            {(!flights.data || flights.data.length === 0) && (
+            {(!flights || flights.length === 0) && (
               <div className="bg-white rounded-xl shadow-lg p-8 text-center">
                 <Plane className="w-16 h-16 text-gray-400 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-gray-600 mb-2">No flights found</h3>

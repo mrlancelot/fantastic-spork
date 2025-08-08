@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
 import { Plane, Building2, MapPin, Calendar, Users, Search, Filter, Star } from 'lucide-react';
 import { api } from '../utils/api';
 import ConfettiEffect from './ui/ConfettiEffect';
 
 export default function SearchInterface() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('flights');
   const [searchData, setSearchData] = useState({
     flights: {
@@ -332,41 +334,124 @@ export default function SearchInterface() {
         </div>
         
         <div className="p-4">
-          {results.status === 'success' ? (
+          {results && results.status === 'success' ? (
             <div className="space-y-3">
-              {/* Mock results for demonstration */}
-              {[1,2,3].map(index => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900 mb-1">
-                        {activeTab === 'flights' && `Flight Option ${index}`}
-                        {activeTab === 'hotels' && `Hotel Option ${index}`}
-                        {activeTab === 'activities' && `Activity Option ${index}`}
-                      </h4>
-                      <p className="text-sm text-gray-600 mb-2">
-                        {activeTab === 'flights' && 'Round-trip • 2 stops • 8h 45m'}
-                        {activeTab === 'hotels' && '4-star hotel • City center • Free WiFi'}
-                        {activeTab === 'activities' && 'Guided tour • 3 hours • Small group'}
-                      </p>
-                      <div className="flex items-center gap-1">
-                        {[...Array(5)].map((_, i) => (
-                          <Star key={i} className={`w-4 h-4 ${i < 4 ? 'text-yellow-400 fill-current' : 'text-gray-300'}`} />
-                        ))}
-                        <span className="text-sm text-gray-600 ml-1">4.0 (245 reviews)</span>
+              {activeTab === 'flights' && results.flights && results.flights.length > 0 ? (
+                results.flights.map((flight, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 mb-1">
+                          {flight.airline} Flight {flight.flight_number}
+                        </h4>
+                        <p className="text-sm text-gray-600 mb-2">
+                          {flight.departure_time} → {flight.arrival_time}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Duration: {flight.duration} • {flight.stops === 0 ? 'Nonstop' : `${flight.stops} stop${flight.stops > 1 ? 's' : ''}`}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-lg font-bold text-gray-900">
+                          {flight.price}
+                        </p>
+                        <button 
+                          onClick={() => {
+                            navigate('/flights', { 
+                              state: { 
+                                flight: flight,
+                                searchParams: searchData.flights 
+                              } 
+                            });
+                          }}
+                          className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors"
+                        >
+                          Select
+                        </button>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-lg font-bold text-gray-900">
-                        ${(450 + index * 100).toLocaleString()}
-                      </p>
-                      <button className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors">
-                        Book Now
-                      </button>
+                  </div>
+                ))
+              ) : activeTab === 'hotels' && results.hotels && results.hotels.length > 0 ? (
+                results.hotels.map((hotel, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 mb-1">
+                          {hotel.name}
+                        </h4>
+                        <p className="text-sm text-gray-600 mb-2">
+                          📍 {hotel.address}
+                        </p>
+                        {(hotel.distance && hotel.distance !== 'N/A' || hotel.rating && hotel.rating !== 'N/A') && (
+                          <p className="text-xs text-gray-500">
+                            {hotel.distance && hotel.distance !== 'N/A' && `Distance: ${hotel.distance}`}
+                            {hotel.distance && hotel.distance !== 'N/A' && hotel.rating && hotel.rating !== 'N/A' && ' • '}
+                            {hotel.rating && hotel.rating !== 'N/A' && `Rating: ${hotel.rating}`}
+                          </p>
+                        )}
+                        {hotel.id && (
+                          <p className="text-xs text-gray-400 mt-1">
+                            Hotel ID: {hotel.id}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <button 
+                          onClick={() => {
+                            // Navigate to hotel search page with this hotel selected
+                            navigate('/hotels', { 
+                              state: { 
+                                hotel: hotel,
+                                searchParams: searchData.hotels 
+                              } 
+                            });
+                          }}
+                          className="mt-2 bg-purple-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-purple-700 transition-colors"
+                        >
+                          View Details
+                        </button>
+                      </div>
                     </div>
                   </div>
+                ))
+              ) : activeTab === 'activities' && results.activities && results.activities.length > 0 ? (
+                results.activities.map((activity, index) => (
+                  <div key={index} className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h4 className="font-medium text-gray-900 mb-1">
+                          {activity.name}
+                        </h4>
+                        {activity.description && (
+                          <p className="text-sm text-gray-600 mb-2">
+                            {activity.description}
+                          </p>
+                        )}
+                        {activity.rating && (
+                          <p className="text-xs text-gray-500">
+                            Rating: {activity.rating}
+                          </p>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        {activity.price && (
+                          <p className="text-lg font-bold text-gray-900">
+                            {activity.currency} {activity.price}
+                          </p>
+                        )}
+                        <button className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700 transition-colors">
+                          Book Now
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No results found. Please try different search criteria.
                 </div>
-              ))}
+              )}
             </div>
           ) : (
             <div className="text-center py-8 text-gray-500">

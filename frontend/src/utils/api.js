@@ -41,7 +41,7 @@ export async function apiCall(endpoint, options = {}) {
 
 // Smart Daily Planner API
 export const smartPlanner = {
-  create: (destination, startDate, endDate, travelers, preferences = [], budget = null) =>
+  create: (destination, startDate, endDate, travelers, interests = [], budget = null) =>
     apiCall('planner/smart', {
       method: 'POST',
       body: JSON.stringify({
@@ -49,8 +49,9 @@ export const smartPlanner = {
         start_date: startDate,
         end_date: endDate,
         travelers,
-        preferences,
-        budget
+        interests,
+        budget,
+        pace: 'moderate'
       })
     }),
 
@@ -67,7 +68,7 @@ export const smartPlanner = {
     }),
 
   save: (itineraryData) =>
-    apiCall('save-itinerary', {
+    apiCall('planner/save', {
       method: 'POST',
       body: JSON.stringify(itineraryData)
     })
@@ -84,18 +85,26 @@ export const flights = {
         departure_date: departureDate,
         return_date: returnDate,
         adults,
-        seat_class: seatClass
+        travel_class: seatClass.toUpperCase(),
+        max_results: 10
       })
     }),
 
-  getCheapestDates: (origin, destination, departureDate = null, oneWay = false, duration = null) =>
+  getCheapestDates: (origin, destination) =>
     apiCall('flights/cheapest-dates', {
-      params: new URLSearchParams({
+      method: 'POST',
+      body: JSON.stringify({ origin, destination })
+    }),
+
+  getFlexible: (origin, destination, departureMonth, tripLengthDays = 7, adults = 1) =>
+    apiCall('flights/flexible', {
+      method: 'POST',
+      body: JSON.stringify({
         origin,
         destination,
-        ...(departureDate && { departure_date: departureDate }),
-        one_way: oneWay,
-        ...(duration && { duration })
+        departure_month: departureMonth,
+        trip_length_days: tripLengthDays,
+        adults
       })
     })
 };
@@ -172,12 +181,31 @@ export const user = {
     })
 };
 
+// Analytics API
+export const analytics = {
+  getFlightInspiration: (origin, maxPrice) =>
+    apiCall(`analytics/flight-inspiration?origin=${origin}${maxPrice ? `&max_price=${maxPrice}` : ''}`),
+  
+  getAirportRoutes: (airportCode) =>
+    apiCall(`analytics/airport-routes?airport_code=${airportCode}`),
+  
+  analyzePrices: (origin, destination, departureDate) =>
+    apiCall('analytics/price-analysis', {
+      method: 'POST',
+      body: JSON.stringify({
+        origin,
+        destination,
+        departure_date: departureDate
+      })
+    })
+};
+
 // Direct API functions for components
 export const createSmartItinerary = (data) => 
   apiCall('planner/smart', { method: 'POST', body: JSON.stringify(data) });
 
 export const saveItinerary = (data) => 
-  apiCall('save-itinerary', { method: 'POST', body: JSON.stringify(data) });
+  apiCall('planner/save', { method: 'POST', body: JSON.stringify(data) });
 
 export const completeSlot = (slotId) => 
   apiCall('planner/slot/complete', { method: 'POST', body: JSON.stringify({ slot_id: slotId }) });
@@ -204,6 +232,7 @@ export const api = {
   chat,
   weather,
   user,
+  analytics,
   // Direct functions
   createSmartItinerary,
   saveItinerary,

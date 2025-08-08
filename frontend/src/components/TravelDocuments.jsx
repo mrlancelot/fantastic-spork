@@ -25,62 +25,24 @@ export default function TravelDocuments() {
     setUploading(true);
 
     try {
-      // Simulate file upload and OCR extraction
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      const mockExtractedData = {
-        flight: {
-          pnr: 'ABC123',
-          flightNumber: 'AA 1234',
-          airline: 'American Airlines',
-          departure: '2024-08-15 08:30',
-          arrival: '2024-08-15 12:45',
-          seat: '12A',
-          terminal: 'Terminal 2',
-          checkInUrl: 'https://aa.com/checkin'
-        },
-        hotel: {
-          confirmationNumber: 'HTL456789',
-          hotelName: 'Grand Hotel',
-          checkIn: '2024-08-15',
-          checkOut: '2024-08-20',
-          roomType: 'Deluxe King Room',
-          address: '123 Main St, City'
-        },
-        passport: {
-          passportNumber: 'P123456789',
-          nationality: 'United States',
-          expiryDate: '2030-08-15',
-          issueDate: '2020-08-15'
-        },
-        visa: {
-          visaNumber: 'V987654321',
-          country: 'France',
-          validFrom: '2024-08-01',
-          validUntil: '2025-08-01',
-          entries: 'Multiple'
-        },
-        insurance: {
-          policyNumber: 'INS789123',
-          provider: 'Travel Safe Insurance',
-          coverage: '$100,000',
-          validFrom: '2024-08-15',
-          validUntil: '2024-08-25'
-        }
-      };
-
+      // Document OCR extraction not yet implemented
+      // This feature will be available in a future update
+      
       const newDoc = {
         id: Date.now(),
         name: file.name,
         type: selectedDocType,
         size: file.size,
         uploadedAt: new Date(),
-        extractedData: mockExtractedData[selectedDocType] || {},
-        status: 'processed'
+        extractedData: {},
+        status: 'uploaded'
       };
 
       setUploadedDocs(prev => [...prev, newDoc]);
-      setExtractedData(mockExtractedData[selectedDocType] || {});
+      setExtractedData({});
+      
+      // Show message that OCR is not yet available
+      alert('Document uploaded successfully! OCR extraction feature coming soon.');
       
       // Auto-clear extracted data after 5 seconds
       setTimeout(() => setExtractedData(null), 5000);

@@ -1,0 +1,133 @@
+{
+  "timestamp": "2025-08-07T14:52:36.439825",
+  "summary": {
+    "total": 24,
+    "success": 24,
+    "failed": 0,
+    "timeout": 0,
+    "error": 0,
+    "success_rate": 100.0
+  },
+  "results": [
+    {
+      "name": "Health Check",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Status",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Flight Search",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Flexible Search",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Cheapest Dates",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Flight Status",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Check-in Links",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Hotel Search POST",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Hotel Search GET",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Hotel Sentiments",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Activities Search POST",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Activities Search GET",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Flight Inspiration",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Most Traveled",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Most Booked",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Busiest Period",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Flight Delay Prediction",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Trip Purpose",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Airport Routes",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Price Analysis",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Smart Itinerary",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Save Itinerary",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Chat",
+      "status": "success",
+      "code": 200
+    },
+    {
+      "name": "Agent Chat",
+      "status": "success",
+      "code": 200
+    }
+  ]
+}
