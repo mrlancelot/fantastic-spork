@@ -1,0 +1,69 @@
+Quick API Test Suite
+============================================================
+Target: http://localhost:8000
+Timeout: 5s per request
+
+HEALTH Endpoints:
+✓ Health Check: GET /api/health - SUCCESS (200)
+✗ Status: GET /api/status - FAILED (404)
+  Error: {"detail":"Not Found"}
+
+FLIGHTS Endpoints:
+⚠ Flight Search: POST /api/flights/search - TIMEOUT (5s)
+⚠ Flexible Search: POST /api/flights/flexible - TIMEOUT (5s)
+⚠ Cheapest Dates: POST /api/flights/cheapest-dates - TIMEOUT (5s)
+✗ Flight Status: GET /api/flights/status - FAILED (422)
+  Error: {"detail":[{"type":"missing","loc":["query","carrier_code"],"msg":"Field required","input":null},{"t
+✗ Check-in Links: GET /api/flights/checkin-links - FAILED (422)
+  Error: {"detail":[{"type":"missing","loc":["query","airline_code"],"msg":"Field required","input":null}]}
+
+HOTELS Endpoints:
+✓ Hotel Search POST: POST /api/hotels/search - SUCCESS (200)
+✗ Hotel Search GET: GET /api/hotels/search - FAILED (500)
+  Error: {"error":"HTTP_ERROR","message":"Hotel search failed: 2 validation errors for HotelSearchRequest\nch
+✓ Hotel Sentiments: POST /api/hotels/sentiments - SUCCESS (200)
+
+ACTIVITIES Endpoints:
+⚠ Activities Search POST: POST /api/activities/search - TIMEOUT (5s)
+✗ Activities Search GET: GET /api/activities/search - FAILED (422)
+  Error: {"detail":[{"type":"missing","loc":["query","latitude"],"msg":"Field required","input":null},{"type"
+
+ANALYTICS Endpoints:
+✗ Flight Inspiration: GET /api/analytics/flight-inspiration - FAILED (404)
+  Error: {"detail":"Not Found"}
+✗ Most Traveled: GET /api/analytics/most-traveled - FAILED (422)
+  Error: {"detail":[{"type":"missing","loc":["query","origin_city_code"],"msg":"Field required","input":null}
+✗ Most Booked: GET /api/analytics/most-booked - FAILED (422)
+  Error: {"detail":[{"type":"missing","loc":["query","origin_city_code"],"msg":"Field required","input":null}
+✗ Busiest Period: GET /api/analytics/busiest-period - FAILED (422)
+  Error: {"detail":[{"type":"missing","loc":["query","city_code"],"msg":"Field required","input":null},{"type
+✗ Flight Delay Prediction: POST /api/analytics/flight-delay-prediction - FAILED (404)
+  Error: {"detail":"Not Found"}
+✗ Trip Purpose: POST /api/analytics/trip-purpose-prediction - FAILED (404)
+  Error: {"detail":"Not Found"}
+✗ Airport Routes: GET /api/analytics/airport-routes - FAILED (404)
+  Error: {"detail":"Not Found"}
+✗ Price Analysis: POST /api/analytics/price-analysis - FAILED (404)
+  Error: {"detail":"Not Found"}
+
+PLANNER Endpoints:
+✗ Smart Itinerary: POST /api/planner/smart - FAILED (422)
+  Error: {"detail":[{"type":"int_parsing","loc":["body","budget"],"msg":"Input should be a valid integer, una
+✗ Save Itinerary: POST /api/planner/save - FAILED (404)
+  Error: {"detail":"Not Found"}
+
+AI CHAT Endpoints:
+⚠ Chat: POST /api/chat/ - TIMEOUT (5s)
+✓ Agent Chat: POST /api/chat/agent - SUCCESS (200)
+
+============================================================
+SUMMARY
+============================================================
+✓ Success: 4/24
+✗ Failed: 15/24
+⚠ Timeout: 5/24
+⚠ Error: 0/24
+
+Success Rate: 16.7%
+
+Detailed results saved to test_api/quick_results.json

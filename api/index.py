@@ -6,10 +6,11 @@ If you are not deploying on Vercel, you can delete this file.
 import sys
 import os
 
-# Add backend src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend', 'src'))
+# Add backend to path for the new refactored structure
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
-from api import app
+# Import the main FastAPI app from the refactored backend
+from app import app
 
 # Export the FastAPI app for Vercel
 # Note: We don't need to mount it at /api since Vercel's rewrites handle that

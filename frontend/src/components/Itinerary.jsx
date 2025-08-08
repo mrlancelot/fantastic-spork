@@ -66,7 +66,7 @@ const Itinerary = () => {
       // Use environment-appropriate API URL
       const apiUrl = import.meta.env.PROD 
         ? '' 
-        : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+        : 'http://localhost:8000';
       
       const response = await fetch(`${apiUrl}/api/generate-itinerary`, {
         method: 'POST',
@@ -106,7 +106,7 @@ const Itinerary = () => {
       // Use environment-appropriate API URL
       const apiUrl = import.meta.env.PROD 
         ? '' 
-        : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+        : 'http://localhost:8000';
       
       const response = await fetch(`${apiUrl}/api/save-itinerary`, {
         method: 'POST',

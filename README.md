@@ -1,6 +1,6 @@
 # TravelAI - AI-Powered Travel Planning Platform
 
-A modern full-stack travel planning application that leverages AI to create personalized itineraries and enhance the travel planning experience. Built with React, FastAPI, Convex, and powered by Google's Gemini AI.
+A modern full-stack travel planning application that leverages AI to create personalized itineraries and enhance the travel planning experience. Built with React, FastAPI, Convex, and powered by real travel data from Amadeus GDS and Google's Gemini AI.
 
 ## Overview
 
@@ -34,12 +34,13 @@ TravelAI is a comprehensive travel planning platform that combines cutting-edge 
 - Trip status tracking (upcoming, ongoing, completed)
 - Empty state guidance for new users
 
-### 🗺️ Itinerary Builder
-- Day-by-day activity planning with time slots
-- Visual timeline view of daily activities
+### 🗺️ Itinerary Management
+- AI-generated day-by-day activity planning
+- Visual timeline view with activities and timings
+- Save and manage multiple itineraries per trip
+- Open, edit, and delete saved itineraries
 - Budget tracking and expense management
 - Export and share capabilities
-- Quick actions for booking and calendar integration
 
 ### 🌍 Destination Discovery
 - Explore 6 popular destinations with stunning imagery
@@ -49,11 +50,13 @@ TravelAI is a comprehensive travel planning platform that combines cutting-edge 
 - Real pricing estimates per day
 
 ### 🎯 Trip Planning Interface
-- Dual-pane layout: preferences and AI chat
-- Trip type selection (Adventure, Relaxation, Culture, Business)
+- Smart trip form with destination and date selection
+- Travel style preferences (Adventure, Relaxation, Culture, Business)
 - Budget range configuration
+- Number of travelers setting
 - Interest tagging system
-- Generate AI itinerary with one click
+- AI-powered itinerary generation
+- Save multiple itineraries per trip
 
 ### 👤 User Profile & Authentication
 - Secure authentication with Clerk
@@ -86,7 +89,9 @@ TravelAI is a comprehensive travel planning platform that combines cutting-edge 
 - **FastAPI** - High-performance Python web framework
 - **Python 3.8+** - Backend runtime
 - **Pydantic** - Data validation using Python type annotations
+- **Amadeus GDS** - Real-time flight, hotel, and activity data
 - **Google Gemini AI** - Advanced AI model for travel recommendations
+- **OpenRouter** - Multi-model AI routing
 - **Convex Python SDK** - Backend integration with Convex
 - **HTTPX** - Async HTTP client for external API calls
 - **python-dotenv** - Environment variable management
@@ -138,8 +143,13 @@ cp .env.example .env
 
 2. Update the `.env` file with your API keys:
 ```env
-# Gemini AI
+# Amadeus GDS (Global Distribution System)
+AMADEUS_API_KEY=your_amadeus_api_key
+AMADEUS_SECRET=your_amadeus_secret
+
+# AI Services
 GEMINI_API_KEY=your_gemini_api_key_here
+OPENROUTER_API_KEY=your_openrouter_key
 
 # Clerk Authentication
 CLERK_SECRET_KEY=your_clerk_secret_key
@@ -159,10 +169,14 @@ npx convex dev
 
 ### Running Locally
 
-#### Option 1: Run both services together
+#### Option 1: Run all services together (Recommended)
 ```bash
-./run.sh both
+./run.sh all
 ```
+This will start:
+- Backend API on http://localhost:8000
+- Frontend on http://localhost:5173
+- Convex real-time database
 
 #### Option 2: Run services separately
 
@@ -170,7 +184,7 @@ npx convex dev
 ```bash
 cd backend
 source venv/bin/activate
-fastapi dev src/api.py
+python -m src.main
 ```
 
 2. In a new terminal, start the frontend development server:
@@ -209,12 +223,20 @@ fantastic-spork/
 │   └── vite.config.js
 ├── backend/               # FastAPI backend application
 │   ├── src/
-│   │   ├── api.py        # API routes and endpoints
-│   │   └── main.py       # Server configuration
+│   │   ├── main.py       # FastAPI app with router architecture
+│   │   ├── routers/      # API route modules
+│   │   │   ├── flights.py    # Amadeus flight search
+│   │   │   ├── hotels.py     # Amadeus hotel search
+│   │   │   ├── activities.py # Amadeus activities
+│   │   │   ├── analytics.py  # Travel analytics
+│   │   │   ├── planner.py    # Smart itinerary planner
+│   │   │   ├── chat.py       # AI chat integration
+│   │   │   └── health.py     # Health checks
+│   │   ├── agents/       # AI agents for planning
+│   │   └── services/     # Service integrations
 │   └── requirements.txt
-├── api/                  # Vercel deployment configuration
-├── tests/                # Playwright E2E tests
-├── run.sh               # Utility script to run services
+├── .env                  # Single environment config
+├── run.sh               # Enhanced service runner
 ├── vercel.json          # Vercel deployment settings
 ├── CLAUDE.md            # AI assistant instructions
 └── README.md
@@ -246,28 +268,65 @@ This approach ensures optimal performance while maintaining security and control
 ## API Endpoints
 
 ### Backend API (FastAPI)
-- `GET /hello` - Health check endpoint
-- `GET /test-env` - Environment variables verification
-- `GET /items/{item_id}` - Example dynamic route
-- `GET /get-random` - Example random data endpoint
-- `POST /chat` - Chat with Gemini AI
+
+#### Health & Status
+- `GET /api/health` - System health check
+- `GET /api/status` - Detailed service status
+
+#### Flight Services (Amadeus GDS)
+- `GET /api/flights/search` - Search real-time flights
+  - Query params: `origin`, `destination`, `departure_date`, `adults`
+- `GET /api/flights/status` - Get flight status
+  - Query params: `carrier_code`, `flight_number`, `date`
+- `GET /api/flights/checkin-links` - Get airline check-in URLs
+  - Query params: `airline_code`
+
+#### Hotel Services (Amadeus GDS)
+- `GET /api/hotels/search-by-city` - Search hotels by city
+  - Query params: `city_code`
+- `GET /api/hotels/search` - Search hotels with details
+  - Query params: `hotel_ids`
+- `GET /api/hotels/sentiments` - Get hotel reviews sentiment
+  - Query params: `hotel_ids`
+
+#### Activity Services (Amadeus GDS)
+- `GET /api/activities/search` - Search activities by location
+  - Query params: `latitude`, `longitude`
+- `GET /api/activities/search-by-square` - Search in area
+  - Query params: `north`, `south`, `east`, `west`
+
+#### Travel Analytics
+- `GET /api/analytics/market-insights` - Get market insights
+- `POST /api/analytics/flight-price-analysis` - Analyze flight prices
+- `POST /api/analytics/trip-purpose-prediction` - Predict trip purpose
+- `GET /api/analytics/travel-recommendations` - Get AI recommendations
+
+#### Smart Planning
+- `POST /api/planner/create-itinerary` - Generate smart itinerary
+  - Request: `{ "destination": "string", "days": number, "preferences": object }`
+- `GET /api/planner/suggestions` - Get destination suggestions
+
+#### AI Chat
+- `POST /api/chat` - Chat with AI travel assistant
   - Request: `{ "message": "string" }`
   - Response: `{ "response": "string" }`
-- `POST /store-user` - Store user in Convex
-  - Request: `{ "clerk_user_id": "string", "email": "string", "name": "string?", "image_url": "string?" }`
-  - Response: `{ "success": boolean, "message": "string", "user_id": "string?" }`
 
 ### Convex Functions
 
 **Queries (Direct Frontend Access)**
 - `users.getMyUser` - Get current authenticated user
 - `trips.getUserTrips` - Get all trips for current user
+- `trips.getTrip` - Get specific trip by ID
+- `itineraries.getByTripId` - Get all itineraries for a trip
+- `itineraries.get` - Get specific itinerary by ID
 
 **Mutations (Backend Access Only)**
 - `users.storeFromBackend` - Store/update user data
-- `trips.createFromBackend` - Create new trip (TODO)
-- `trips.updateFromBackend` - Update existing trip (TODO)
-- `trips.deleteFromBackend` - Delete trip (TODO)
+- `trips.createFromBackend` - Create new trip
+- `trips.updateFromBackend` - Update existing trip
+- `trips.deleteFromBackend` - Delete trip
+- `itineraries.createFromBackend` - Save generated itinerary
+- `itineraries.deleteFromBackend` - Delete saved itinerary
 
 **Actions**
 - `chats.sendMessage` - Send message to AI assistant
@@ -396,6 +455,27 @@ To use these MCP servers:
    - Check CORS configuration
    - Verify environment variables are loaded
 
+## Recent Updates
+
+### Backend Architecture Refactoring ✅
+- ✅ Complete integration with Amadeus GDS for real travel data
+- ✅ Removed all mock data and fallback implementations
+- ✅ Refactored to clean router-based architecture
+- ✅ Consolidated 8 environment files into single `.env`
+- ✅ Enhanced `run.sh` to manage all services (frontend, backend, Convex)
+
+### Features
+- ✅ Real-time flight search and booking via Amadeus
+- ✅ Hotel search with sentiment analysis
+- ✅ Activity recommendations by location
+- ✅ AI-powered itinerary generation with Gemini
+- ✅ Smart travel analytics and insights
+- ✅ Multi-model AI support (Gemini, OpenRouter)
+- ✅ Save and manage multiple itineraries per trip
+- ✅ Complete trip CRUD operations
+- ✅ Real-time database synchronization
+- ✅ Beautiful, responsive UI with Framer Motion
+
 ## Future Enhancements
 
 - [ ] Mobile app with React Native
@@ -408,6 +488,8 @@ To use these MCP servers:
 - [ ] Weather integration
 - [ ] Photo gallery for trips
 - [ ] Social sharing features
+- [ ] PDF export for itineraries
+- [ ] Calendar sync (Google, Apple)
 
 ## Contributing
 

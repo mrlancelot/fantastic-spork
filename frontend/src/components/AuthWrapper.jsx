@@ -15,7 +15,7 @@ export function AuthWrapper({ children }) {
           // Use environment-appropriate API URL
           const apiUrl = import.meta.env.PROD 
             ? '' 
-            : (import.meta.env.VITE_API_URL || 'http://localhost:8000');
+            : 'http://localhost:8000';
           const response = await fetch(`${apiUrl}/api/store-user`, {
             method: 'POST',
             headers: {
