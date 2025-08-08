@@ -30,6 +30,7 @@ class AgentAction(str, Enum):
     ANALYZING = "analyzing"
     CALLING_SERVICE = "calling_service"
     COMPLETE = "complete"
+    ERROR = "error"
 
 class AgentThought(BaseModel):
     action: AgentAction
@@ -116,6 +117,16 @@ class MasterTravelAgent:
     async def _init_services(self):
         """Lazy initialize services to avoid import errors"""
         logger.debug("Starting service initialization...")
+        
+        # Initialize day planner
+        if not hasattr(self, 'day_planner'):
+            try:
+                from .day_planner_agent import DayPlannerAgent
+                self.day_planner = DayPlannerAgent()
+                logger.info("Day planner initialized successfully")
+            except Exception as e:
+                logger.error(f"Could not initialize day planner: {e}")
+                self.day_planner = None
         
         if not self.flight_service:
             logger.debug("Initializing flight service...")

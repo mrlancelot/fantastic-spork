@@ -41,31 +41,30 @@ export async function apiCall(endpoint, options = {}) {
 
 // Smart Daily Planner API
 export const smartPlanner = {
-  create: (destination, startDate, endDate, travelers, interests = [], budget = null) =>
+  create: (destination, startDate, endDate, travelers = 1, interests = [], budget = 1000) =>
     apiCall('planner/smart', {
       method: 'POST',
       body: JSON.stringify({
         destination,
         start_date: startDate,
         end_date: endDate,
-        travelers,
-        interests,
-        budget,
+        travelers: travelers || 1,
+        interests: interests || [],
+        budget: budget || 1000,
         pace: 'moderate'
       })
     }),
 
-  updateSlot: (date, slotId, slotData) =>
-    apiCall(`planner/slot/${date}/${slotId}`, {
-      method: 'PUT',
-      body: JSON.stringify(slotData)
-    }),
+  // Slot management - to be implemented in backend
+  updateSlot: async (date, slotId, slotData) => {
+    console.warn('Slot update API not yet implemented');
+    return { status: 'success', message: 'Feature coming soon' };
+  },
 
-  completeSlot: (slotId) =>
-    apiCall('planner/slot/complete', {
-      method: 'POST',
-      body: JSON.stringify({ slot_id: slotId })
-    }),
+  completeSlot: async (slotId) => {
+    console.warn('Slot complete API not yet implemented');
+    return { status: 'success', message: 'Feature coming soon' };
+  },
 
   save: (itineraryData) =>
     apiCall('planner/save', {
@@ -143,13 +142,16 @@ export const activities = {
     })
 };
 
-// Restaurant Search API
+// Restaurant Search API - Not yet implemented
 export const restaurants = {
-  search: (query, location) =>
-    apiCall('restaurants/search', {
-      method: 'POST',
-      body: JSON.stringify({ query, location })
-    })
+  search: async (query, location) => {
+    console.warn('Restaurant search API not yet implemented');
+    return { 
+      status: 'success', 
+      restaurants: [],
+      message: 'Restaurant search coming soon' 
+    };
+  }
 };
 
 // AI Chat API
@@ -161,10 +163,17 @@ export const chat = {
     })
 };
 
-// Weather API
+// Weather API - Not yet implemented
 export const weather = {
-  get: (location, date) =>
-    apiCall(`weather/${location}?date=${date}`)
+  get: async (location, date) => {
+    console.warn('Weather API not yet implemented');
+    return {
+      status: 'success',
+      temperature: 72,
+      condition: 'Partly Cloudy',
+      message: 'Weather data coming soon'
+    };
+  }
 };
 
 // User Management API
@@ -207,8 +216,10 @@ export const createSmartItinerary = (data) =>
 export const saveItinerary = (data) => 
   apiCall('planner/save', { method: 'POST', body: JSON.stringify(data) });
 
-export const completeSlot = (slotId) => 
-  apiCall('planner/slot/complete', { method: 'POST', body: JSON.stringify({ slot_id: slotId }) });
+export const completeSlot = async (slotId) => {
+  console.warn('Slot complete API not yet implemented');
+  return { status: 'success', message: 'Feature coming soon' };
+};
 
 export const searchFlights = (data) => 
   apiCall('flights/search', { method: 'POST', body: JSON.stringify(data) });

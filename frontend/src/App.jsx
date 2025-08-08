@@ -1,16 +1,16 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { Home, Calendar, Search, FileText, Brain, Map, Trophy, Users, Heart, BookOpen, Cloud, Camera, Bot } from 'lucide-react';
+import { useQuery } from 'convex/react';
+import { api } from '../convex/_generated/api';
 import { AuthWrapper } from './components/AuthWrapper';
 import { ConfettiProvider } from './contexts/ConfettiContext';
 import ConfettiToggle from './components/ConfettiToggle';
+import ProtectedRoute from './components/ProtectedRoute';
 import Landing from './components/Landing';
 import Itinerary from './components/Itinerary';
+import SearchPage from './components/SearchPage';
 import SmartPlanner from './components/SmartPlanner';
-import SearchInterface from './components/SearchInterface';
-import TravelDocuments from './components/TravelDocuments';
-import FlightSearch from './components/FlightSearch';
-import HotelSearch from './components/HotelSearch';
 import DailyPlanner from './components/DailyPlanner';
 import CartoonMapJourney from './components/CartoonMapJourney';
 import AIChat from './components/AIChat';
@@ -90,7 +90,12 @@ function DailyPlannerPage() {
 
 function JourneyPage() {
   const { tripId } = useParams();
+  const currentUser = useQuery(api.users.getMyUser);
+  const activeItinerary = useQuery(api.richItineraries.getActiveItinerary, 
+    currentUser?._id ? { userId: currentUser._id } : "skip"
+  );
   
+  // If specific trip ID is provided, use it
   if (tripId) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -99,20 +104,82 @@ function JourneyPage() {
     );
   }
   
+  // If there's an active itinerary, show journey progress
+  if (activeItinerary) {
+    const { journeyData, destination, dailyPlans } = activeItinerary;
+    const completedSlots = journeyData?.completed || 0;
+    const totalSlots = journeyData?.totalActivities || 0;
+    const progressPercentage = journeyData?.progressPercentage || 0;
+    
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-800 mb-4">
+            Your Journey to {destination}
+          </h1>
+          <div className="max-w-md mx-auto">
+            <div className="bg-white rounded-lg p-6 shadow-lg">
+              <div className="mb-4">
+                <div className="flex justify-between text-sm text-gray-600 mb-2">
+                  <span>Progress</span>
+                  <span>{completedSlots} / {totalSlots} activities</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-3">
+                  <div 
+                    className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full transition-all duration-500"
+                    style={{ width: `${progressPercentage}%` }}
+                  />
+                </div>
+              </div>
+              
+              <div className="mb-4">
+                <p className="text-gray-600">
+                  Level {journeyData?.currentLevel || 1} of {journeyData?.levels || 1}
+                </p>
+              </div>
+              
+              {/* Display unlocked badges */}
+              {journeyData?.badges && (
+                <div className="flex justify-center gap-4 mb-4">
+                  {journeyData.badges.filter(b => b.unlocked).map(badge => (
+                    <div key={badge.id} className="text-center">
+                      <div className="text-3xl mb-1">{badge.icon}</div>
+                      <p className="text-xs text-gray-600">{badge.name}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              <Link 
+                to="/planner/smart" 
+                className="inline-block w-full px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:opacity-90 transition-opacity text-center"
+              >
+                View Full Itinerary
+              </Link>
+            </div>
+          </div>
+        </div>
+        
+        {/* Visual journey map requires tripId - not showing without it */}
+      </div>
+    );
+  }
+  
+  // No active journey
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-800 mb-4">Your Travel Journey</h1>
-        <p className="text-gray-600">Select a trip to view your progress map</p>
+        <p className="text-gray-600">Track your progress through amazing destinations</p>
       </div>
       <div className="bg-white rounded-lg p-8 shadow-sm border border-gray-200 text-center">
         <Map className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-        <p className="text-gray-500">No active journeys found. Create a trip first!</p>
+        <p className="text-gray-500">No active journeys found. Create an itinerary to start your adventure!</p>
         <Link 
-          to="/planner" 
-          className="inline-block mt-4 px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+          to="/planner/smart" 
+          className="inline-block mt-4 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:opacity-90 transition-opacity"
         >
-          Create Your First Trip
+          Create Your Journey
         </Link>
       </div>
     </div>
@@ -213,33 +280,31 @@ function App() {
             <Routes>
             {/* Main Pages */}
             <Route path="/" element={<Landing />} />
-            <Route path="/agent" element={<AgentChat />} />
-            <Route path="/planner" element={<SmartPlanner />} />
-            <Route path="/achievements" element={<AchievementsPage />} />
+            <Route path="/search" element={<SearchPage />} />
+            <Route path="/agent" element={<ProtectedRoute><AgentChat /></ProtectedRoute>} />
+            <Route path="/planner" element={<ProtectedRoute><SmartPlanner /></ProtectedRoute>} />
+            <Route path="/achievements" element={<ProtectedRoute><AchievementsPage /></ProtectedRoute>} />
             
             {/* Feature Pages with Optional Trip ID */}
-            <Route path="/journey" element={<JourneyPage />} />
-            <Route path="/journey/:tripId" element={<JourneyPage />} />
+            <Route path="/journey" element={<ProtectedRoute><JourneyPage /></ProtectedRoute>} />
+            <Route path="/journey/:tripId" element={<ProtectedRoute><JourneyPage /></ProtectedRoute>} />
             
-            <Route path="/scrapbook" element={<ScrapbookPage />} />
-            <Route path="/scrapbook/:tripId" element={<ScrapbookPage />} />
+            <Route path="/scrapbook" element={<ProtectedRoute><ScrapbookPage /></ProtectedRoute>} />
+            <Route path="/scrapbook/:tripId" element={<ProtectedRoute><ScrapbookPage /></ProtectedRoute>} />
             
-            <Route path="/group" element={<GroupPage />} />
-            <Route path="/group/:tripId" element={<GroupPage />} />
+            <Route path="/group" element={<ProtectedRoute><GroupPage /></ProtectedRoute>} />
+            <Route path="/group/:tripId" element={<ProtectedRoute><GroupPage /></ProtectedRoute>} />
             
-            <Route path="/documents" element={<DocsPage />} />
-            <Route path="/documents/:tripId" element={<DocsPage />} />
+            <Route path="/documents" element={<ProtectedRoute><DocsPage /></ProtectedRoute>} />
+            <Route path="/documents/:tripId" element={<ProtectedRoute><DocsPage /></ProtectedRoute>} />
             
             {/* Specific Feature Pages */}
-            <Route path="/planner/:tripId/:date" element={<DailyPlannerPage />} />
-            <Route path="/weather/:location/:date" element={<WeatherPlanningPage />} />
-            <Route path="/mood/:slotId/:tripId" element={<MoodTrackerPage />} />
+            <Route path="/planner/:tripId/:date" element={<ProtectedRoute><DailyPlannerPage /></ProtectedRoute>} />
+            <Route path="/weather/:location/:date" element={<ProtectedRoute><WeatherPlanningPage /></ProtectedRoute>} />
+            <Route path="/mood/:slotId/:tripId" element={<ProtectedRoute><MoodTrackerPage /></ProtectedRoute>} />
             
-            {/* Legacy routes */}
-            <Route path="/search" element={<SearchInterface />} />
-            <Route path="/itinerary" element={<Itinerary />} />
-            <Route path="/flights" element={<FlightSearch />} />
-            <Route path="/hotels" element={<HotelSearch />} />
+            {/* Itinerary route - protected */}
+            <Route path="/itinerary" element={<ProtectedRoute><Itinerary /></ProtectedRoute>} />
           </Routes>
           
           {/* Global AI Chat - appears on all pages except landing */}

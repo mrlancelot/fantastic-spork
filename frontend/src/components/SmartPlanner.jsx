@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, MapPin, Users, Clock, CheckCircle, Sparkles } from 'lucide-react';
+import { Calendar, MapPin, Users, Clock, CheckCircle, Sparkles, X } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { useLocation } from 'react-router-dom';
 import { api } from '../utils/api';
+import { useUser } from '@clerk/clerk-react';
+import { useMutation, useQuery } from 'convex/react';
+import { api as convexApi } from '../../convex/_generated/api';
 import ConfettiEffect from './ui/ConfettiEffect';
 import WeatherCard from './WeatherCard';
 import SlotCard from './SlotCard';
@@ -12,6 +16,19 @@ import MapJourney from './MapJourney';
 import DailyPlannerView from './DailyPlannerView';
 
 const SmartPlanner = () => {
+  const location = useLocation();
+  const { user } = useUser();
+  const currentUser = useQuery(convexApi.users.getMyUser);
+  const saveItinerary = useMutation(convexApi.richItineraries.saveFromBackend);
+  const updateSlotCompletion = useMutation(convexApi.richItineraries.updateSlotCompletion);
+  
+  // Load saved itineraries
+  const savedItineraries = useQuery(convexApi.richItineraries.getUserItineraries, 
+    currentUser?._id ? { userId: currentUser._id } : "skip"
+  );
+  const activeItinerary = useQuery(convexApi.richItineraries.getActiveItinerary,
+    currentUser?._id ? { userId: currentUser._id } : "skip"
+  );
   const [plannerData, setPlannerData] = useState({
     destination: '',
     startDate: '',
@@ -26,6 +43,49 @@ const SmartPlanner = () => {
   const [showConfetti, setShowConfetti] = useState(false);
   const [completedSlots, setCompletedSlots] = useState(new Set());
   const [error, setError] = useState(null);
+  const [showForm, setShowForm] = useState(true);
+  const [toast, setToast] = useState(null);
+
+  // Load saved itinerary on mount if exists
+  useEffect(() => {
+    if (activeItinerary && !itinerary) {
+      // Transform saved itinerary to match expected format
+      const transformed = {
+        ...activeItinerary,
+        status: 'success',
+        itinerary_id: activeItinerary.itineraryId,
+        destination: activeItinerary.destination,
+        start_date: activeItinerary.startDate,
+        end_date: activeItinerary.endDate,
+        duration_days: activeItinerary.durationDays,
+        travelers: activeItinerary.travelers,
+        total_budget: activeItinerary.totalBudget,
+        interests: activeItinerary.interests,
+        pace: activeItinerary.pace,
+        daily_plans: activeItinerary.dailyPlans,
+        recommendations: activeItinerary.recommendations,
+        ai_analysis: activeItinerary.aiAnalysis,
+        export_format: activeItinerary.exportFormat,
+        journey_data: activeItinerary.journeyData
+      };
+      setItinerary(transformed);
+      setShowForm(false);
+    }
+  }, [activeItinerary]);
+  
+  // Check for incoming trip data from navigation
+  useEffect(() => {
+    if (location.state?.tripData) {
+      const tripData = location.state.tripData;
+      setPlannerData(prev => ({
+        ...prev,
+        destination: tripData.destination || '',
+        travelers: tripData.travelers || 1,
+        startDate: tripData.startDate || '',
+        endDate: tripData.endDate || ''
+      }));
+    }
+  }, [location.state]);
 
   // Handle form input changes
   const handleInputChange = (field, value) => {
@@ -53,10 +113,61 @@ const SmartPlanner = () => {
       );
 
       // The API returns the itinerary data directly, not nested
-      if (result && result.status === 'success') {
+      console.log('API Response:', result); // Debug log
+      
+      if (result && result.status === 'success' && result.daily_plans && result.daily_plans.length > 0) {
         setItinerary(result);
+        setShowForm(false);
+        
+        // Auto-save to Convex if user is authenticated
+        if (currentUser?._id) {
+          try {
+            // Transform journey_data field names from snake_case to camelCase
+            const transformedJourneyData = result.journey_data ? {
+              totalActivities: result.journey_data.total_activities || result.journey_data.totalActivities || 0,
+              completed: result.journey_data.completed || 0,
+              progressPercentage: result.journey_data.progress_percentage || result.journey_data.progressPercentage || 0,
+              levels: result.journey_data.levels || 1,
+              currentLevel: result.journey_data.current_level || result.journey_data.currentLevel || 1,
+              badges: result.journey_data.badges || []
+            } : {
+              totalActivities: result.daily_plans?.length * 4 || 0,
+              completed: 0,
+              progressPercentage: 0,
+              levels: result.duration_days || 1,
+              currentLevel: 1,
+              badges: []
+            };
+
+            await saveItinerary({
+              userId: currentUser._id,
+              itineraryData: {
+                itineraryId: result.itinerary_id,
+                destination: result.destination,
+                startDate: result.start_date,
+                endDate: result.end_date,
+                durationDays: result.duration_days,
+                travelers: result.travelers,
+                totalBudget: result.total_budget,
+                interests: result.interests,
+                pace: result.pace,
+                dailyPlans: result.daily_plans,
+                recommendations: result.recommendations,
+                aiAnalysis: result.ai_analysis,
+                exportFormat: result.export_format,
+                journeyData: transformedJourneyData
+              }
+            });
+            console.log('Itinerary auto-saved to Convex');
+          } catch (saveError) {
+            console.error('Failed to auto-save itinerary:', saveError);
+          }
+        }
+      } else if (result && result.status === 'success') {
+        // API returned success but no plans
+        throw new Error('Itinerary generated but no daily plans were created. Please try again.');
       } else {
-        throw new Error('Failed to generate itinerary');
+        throw new Error(result?.message || 'Failed to generate itinerary');
       }
     } catch (error) {
       setError(`Failed to create itinerary: ${error.message}`);
@@ -69,9 +180,7 @@ const SmartPlanner = () => {
   // Handle slot completion
   const handleSlotComplete = async (slotId, dayIndex, slotIndex) => {
     try {
-      await api.completeSlot(slotId);
-      
-      // Mark slot as completed
+      // Mark slot as completed locally
       setCompletedSlots(prev => new Set([...prev, slotId]));
       
       // Trigger confetti celebration
@@ -84,6 +193,28 @@ const SmartPlanner = () => {
         updated.daily_plans[dayIndex].slots[slotIndex].completed = true;
         return updated;
       });
+      
+      // Update in Convex if we have an itinerary ID
+      if (itinerary?.itinerary_id) {
+        try {
+          const result = await updateSlotCompletion({
+            itineraryId: itinerary.itinerary_id,
+            dayIndex,
+            slotIndex,
+            completed: true
+          });
+          
+          // Update journey data from Convex response
+          if (result?.journeyData) {
+            setItinerary(prev => ({
+              ...prev,
+              journey_data: result.journeyData
+            }));
+          }
+        } catch (convexError) {
+          console.error('Failed to update slot in Convex:', convexError);
+        }
+      }
     } catch (error) {
       console.error('Failed to complete slot:', error);
     }
@@ -108,21 +239,52 @@ const SmartPlanner = () => {
     });
   };
 
-  // Save itinerary
-  const saveItinerary = async () => {
-    if (!itinerary) return;
+  // Show toast notification
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Save itinerary manually
+  const saveItineraryManual = async () => {
+    if (!itinerary || !currentUser?._id) {
+      showToast('Please sign in to save your itinerary', 'error');
+      return;
+    }
 
     try {
-      const result = await api.saveItinerary({
-        ...itinerary,
-        user_id: 'current-user', // Replace with actual user ID from auth
-        ...plannerData
+      // Save to Convex
+      await saveItinerary({
+        userId: currentUser._id,
+        itineraryData: {
+          itineraryId: itinerary.itinerary_id,
+          destination: itinerary.destination || plannerData.destination,
+          startDate: itinerary.start_date || plannerData.startDate,
+          endDate: itinerary.end_date || plannerData.endDate,
+          durationDays: itinerary.duration_days,
+          travelers: itinerary.travelers || plannerData.travelers,
+          totalBudget: itinerary.total_budget || plannerData.budget,
+          interests: itinerary.interests || plannerData.interests,
+          pace: itinerary.pace || 'moderate',
+          dailyPlans: itinerary.daily_plans,
+          recommendations: itinerary.recommendations || { flights: [], hotels: [], restaurants: [], activities: [] },
+          aiAnalysis: itinerary.ai_analysis || '',
+          exportFormat: itinerary.export_format || { version: '1.0', type: 'travelai_itinerary', exportable: true },
+          journeyData: itinerary.journey_data || {
+            totalActivities: itinerary.daily_plans?.reduce((t, d) => t + d.slots.length, 0) || 0,
+            completed: completedSlots.size,
+            progressPercentage: 0,
+            levels: itinerary.daily_plans?.length || 1,
+            currentLevel: 1,
+            badges: []
+          }
+        }
       });
       
-      alert('Itinerary saved successfully!');
+      showToast('Itinerary saved successfully!', 'success');
     } catch (error) {
       console.error('Failed to save itinerary:', error);
-      alert('Failed to save itinerary');
+      showToast('Failed to save itinerary', 'error');
     }
   };
 
@@ -144,8 +306,58 @@ const SmartPlanner = () => {
           <p className="text-lg text-gray-600">Plan your perfect trip with AI-powered recommendations</p>
         </motion.div>
 
+        {/* Show saved itineraries if available */}
+        {savedItineraries && savedItineraries.length > 0 && !itinerary && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-6 mb-8"
+          >
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Your Saved Itineraries</h3>
+            <div className="space-y-3">
+              {savedItineraries.slice(0, 3).map((saved) => (
+                <div key={saved._id} className="border rounded-lg p-4 hover:bg-gray-50 cursor-pointer"
+                     onClick={() => {
+                       const transformed = {
+                         ...saved,
+                         status: 'success',
+                         itinerary_id: saved.itineraryId,
+                         destination: saved.destination,
+                         start_date: saved.startDate,
+                         end_date: saved.endDate,
+                         duration_days: saved.durationDays,
+                         travelers: saved.travelers,
+                         total_budget: saved.totalBudget,
+                         interests: saved.interests,
+                         pace: saved.pace,
+                         daily_plans: saved.dailyPlans,
+                         recommendations: saved.recommendations,
+                         ai_analysis: saved.aiAnalysis,
+                         export_format: saved.exportFormat,
+                         journey_data: saved.journeyData
+                       };
+                       setItinerary(transformed);
+                       setShowForm(false);
+                     }}>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h4 className="font-semibold text-gray-700">{saved.destination}</h4>
+                      <p className="text-sm text-gray-500">
+                        {saved.startDate} to {saved.endDate} • {saved.travelers} travelers
+                      </p>
+                    </div>
+                    <div className="text-sm text-gray-400">
+                      {saved.isActive && <span className="text-green-600 font-semibold">Active</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         {/* Planning Form */}
-        {!itinerary && (
+        {(!itinerary || !itinerary.daily_plans || itinerary.daily_plans.length === 0) && showForm && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -176,7 +388,7 @@ const SmartPlanner = () => {
                   min="1"
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   value={plannerData.travelers}
-                  onChange={(e) => handleInputChange('travelers', parseInt(e.target.value))}
+                  onChange={(e) => handleInputChange('travelers', parseInt(e.target.value) || 1)}
                 />
               </div>
 
@@ -225,8 +437,13 @@ const SmartPlanner = () => {
           </motion.div>
         )}
 
+        {/* Clear any broken state */}
+        {itinerary && (!itinerary.daily_plans || itinerary.daily_plans.length === 0) && (
+          <script>{(() => { setItinerary(null); })()}</script>
+        )}
+
         {/* Itinerary Display */}
-        {itinerary && (
+        {itinerary && itinerary.daily_plans && itinerary.daily_plans.length > 0 && (
           <div className="space-y-8">
             {/* Itinerary Header */}
             <motion.div
@@ -236,10 +453,10 @@ const SmartPlanner = () => {
             >
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-2xl font-bold text-gray-800">
-                  Your Trip to {itinerary.destination}
+                  Your Trip to {itinerary.destination || plannerData.destination}
                 </h2>
                 <button
-                  onClick={saveItinerary}
+                  onClick={saveItineraryManual}
                   className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors"
                 >
                   Save Itinerary
@@ -248,7 +465,7 @@ const SmartPlanner = () => {
               <div className="flex items-center gap-4 text-gray-600">
                 <span className="flex items-center gap-1">
                   <Calendar className="w-4 h-4" />
-                  {itinerary.start_date} to {itinerary.end_date}
+                  {itinerary.start_date || plannerData.startDate} to {itinerary.end_date || plannerData.endDate}
                 </span>
                 {plannerData.travelers && (
                   <span className="flex items-center gap-1">
@@ -272,8 +489,22 @@ const SmartPlanner = () => {
               />
             </motion.div>
 
-            {/* Itinerary Plan Display */}
-            {itinerary.plan && (
+            {/* Reset Button if no valid itinerary */}
+            {(!itinerary.daily_plans || itinerary.daily_plans.length === 0) && (
+              <button
+                onClick={() => {
+                  setItinerary(null);
+                  setShowForm(true);
+                  setError(null);
+                }}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Create New Itinerary
+              </button>
+            )}
+
+            {/* Itinerary Plan Display - Legacy Support */}
+            {itinerary && itinerary.plan && !itinerary.daily_plans && (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -335,6 +566,37 @@ const SmartPlanner = () => {
         {/* Chat Interface */}
         <ChatInterface />
       </div>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, x: '-50%' }}
+            animate={{ opacity: 1, y: 0, x: '-50%' }}
+            exit={{ opacity: 0, y: -50, x: '-50%' }}
+            className="fixed top-8 left-1/2 z-50"
+          >
+            <div className={`flex items-center gap-3 px-6 py-4 rounded-xl shadow-2xl ${
+              toast.type === 'success' 
+                ? 'bg-gradient-to-r from-green-500 to-green-600 text-white' 
+                : 'bg-gradient-to-r from-red-500 to-red-600 text-white'
+            }`}>
+              {toast.type === 'success' ? (
+                <CheckCircle className="w-6 h-6" />
+              ) : (
+                <X className="w-6 h-6" />
+              )}
+              <span className="font-medium text-lg">{toast.message}</span>
+              <button
+                onClick={() => setToast(null)}
+                className="ml-4 p-1 hover:bg-white/20 rounded-lg transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

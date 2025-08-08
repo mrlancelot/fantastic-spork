@@ -16,13 +16,24 @@ from dotenv import load_dotenv
 from amadeus import Client, ResponseError
 import google.generativeai as genai
 
-# Load environment
-root_env = Path(__file__).parent.parent.parent / '.env'
-load_dotenv(root_env, override=True)
-
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# Load environment - check multiple locations
+env_locations = [
+    Path(__file__).parent.parent.parent / '.env',  # Root .env
+    Path(__file__).parent.parent / '.env',  # Backend .env
+    Path.cwd() / '.env'  # Current directory .env
+]
+
+for env_path in env_locations:
+    if env_path.exists():
+        load_dotenv(env_path, override=True)
+        logger.info(f"Loaded environment from: {env_path}")
+        break
+else:
+    logger.warning("No .env file found in expected locations")
 
 # Initialize services
 amadeus = Client(
@@ -84,8 +95,9 @@ class SmartPlannerRequest(BaseModel):
     destination: str
     start_date: str
     end_date: str
-    interests: List[str]
-    budget: int
+    travelers: int = 1
+    interests: List[str] = []
+    budget: int = 1000
     pace: str = "moderate"
 
 # Import agent - Add src directory to path properly
@@ -94,7 +106,7 @@ current_dir = Path(__file__).parent
 sys.path.insert(0, str(current_dir))
 logger.info(f"Added to sys.path: {current_dir}")
 
-from agents.master_agent import MasterTravelAgent, TripRequest, AgentThought
+from agents.master_agent import MasterTravelAgent, TripRequest, AgentThought, AgentAction
 from fastapi.responses import StreamingResponse
 import asyncio
 import json
@@ -710,39 +722,351 @@ async def analyze_prices(request: PriceAnalysisRequest):
 
 @app.post("/api/planner/smart")
 async def create_smart_itinerary(request: SmartPlannerRequest):
-    """Create smart itinerary using AI"""
+    """Create comprehensive smart itinerary using Master Agent"""
     try:
-        prompt = f"""Create a {(datetime.strptime(request.end_date, '%Y-%m-%d') - datetime.strptime(request.start_date, '%Y-%m-%d')).days} day itinerary for {request.destination}.
-        Interests: {', '.join(request.interests)}
-        Budget: ${request.budget} per person
-        Pace: {request.pace}
+        # Calculate trip duration
+        start_date = datetime.strptime(request.start_date, '%Y-%m-%d')
+        end_date = datetime.strptime(request.end_date, '%Y-%m-%d')
+        trip_days = (end_date - start_date).days + 1
         
-        Format as a daily schedule with activities, restaurants, and estimated costs."""
+        # Initialize master agent
+        agent = MasterTravelAgent()
         
-        itinerary = await ai_chat(prompt)
+        # Create trip request for agent
+        trip_request = TripRequest(
+            destination=request.destination,
+            start_date=request.start_date,
+            end_date=request.end_date,
+            origin=request.origin if hasattr(request, 'origin') else "New York",
+            budget=request.budget,
+            travelers=request.travelers,
+            interests=request.interests if request.interests else ["food", "culture"],
+            preferences={"pace": request.pace}
+        )
         
-        return {
+        # Collect agent responses
+        agent_data = {
+            "flights": [],
+            "hotels": [],
+            "restaurants": [],
+            "activities": [],
+            "analysis": ""
+        }
+        
+        # Stream agent thoughts and collect data
+        async for thought in agent.plan_trip_stream(trip_request):
+            if thought.data:
+                if "flights" in thought.data:
+                    agent_data["flights"] = thought.data["flights"]
+                elif "hotels" in thought.data:
+                    agent_data["hotels"] = thought.data["hotels"]
+                elif "restaurants" in thought.data:
+                    agent_data["restaurants"] = thought.data["restaurants"]
+                elif "activity_type" in thought.data:
+                    agent_data["activities"].append(thought.data)
+            
+            if thought.action == AgentAction.COMPLETE:
+                agent_data["analysis"] = thought.content
+                
+                # Extract specific recommendations from the AI analysis
+                if thought.content:
+                    analysis_lines = thought.content.split('\n')
+                    for line in analysis_lines:
+                        # Look for specific activity mentions
+                        if 'visit' in line.lower() or 'explore' in line.lower() or 'see' in line.lower():
+                            # Extract place names (usually capitalized words)
+                            import re
+                            places = re.findall(r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b', line)
+                            if places and not agent_data.get("specific_places"):
+                                agent_data["specific_places"] = places
+        
+        # Generate structured daily plans with day planner agent
+        daily_plans = []
+        previous_activities = []  # Track what's been done
+        
+        # Initialize day planner if needed
+        if not hasattr(agent, 'day_planner'):
+            await agent._init_services()
+        
+        for day in range(trip_days):
+            current_date = start_date + timedelta(days=day)
+            
+            # Use day planner for unique activities
+            # Use day planner for unique activities - no fallbacks
+            if not agent.day_planner:
+                raise HTTPException(
+                    status_code=500,
+                    detail="Day planner agent not initialized"
+                )
+            
+            day_activities = await agent.day_planner.plan_day(
+                destination=request.destination,
+                day_num=day + 1,
+                total_days=trip_days,
+                previous_activities=previous_activities,
+                interests=request.interests
+            )
+            
+            # Track activities to avoid repetition
+            previous_activities.extend([
+                day_activities.get('morning', ''),
+                day_activities.get('lunch', ''),
+                day_activities.get('afternoon', ''),
+                day_activities.get('dinner', '')
+            ])
+            
+            # Extract activities - no defaults
+            morning_activity = day_activities['morning']
+            lunch_activity = day_activities['lunch']
+            afternoon_activity = day_activities['afternoon']
+            dinner_activity = day_activities['dinner']
+            
+            # Parse restaurant details from agent data if available
+            # This section is now handled by day_planner above
+            
+            # Get restaurant names for meals
+            lunch_restaurant = None
+            dinner_restaurant = None
+            lunch_name = "Local Restaurant"
+            dinner_name = "Dinner Restaurant"
+            
+            if agent_data["restaurants"]:
+                # Use different restaurants for lunch and dinner
+                lunch_idx = day % len(agent_data["restaurants"])
+                dinner_idx = (day + 1) % len(agent_data["restaurants"])
+                
+                lunch_restaurant = agent_data["restaurants"][lunch_idx]
+                dinner_restaurant = agent_data["restaurants"][dinner_idx] if len(agent_data["restaurants"]) > 1 else agent_data["restaurants"][0]
+                
+                # Get actual restaurant names
+                lunch_name = lunch_restaurant.get("name", "Local Restaurant")
+                dinner_name = dinner_restaurant.get("name", "Evening Restaurant")
+            
+            # Create slots with real data
+            day_plan = {
+                "day": day + 1,
+                "date": current_date.strftime('%Y-%m-%d'),
+                "dayName": current_date.strftime('%A'),
+                "slots": [
+                    {
+                        "id": f"day{day+1}_morning",
+                        "timeSlot": "morning",
+                        "startTime": "09:00",
+                        "endTime": "12:00",
+                        "activity": morning_activity,  # Using 'activity' field for frontend compatibility
+                        "title": morning_activity,
+                        "description": f"Start your day exploring {request.destination}'s highlights",
+                        "location": request.destination,
+                        "duration": "3 hours",
+                        "type": "activity",
+                        "budget": request.budget / (trip_days * 3),
+                        "recommendations": agent_data["activities"][:1] if agent_data["activities"] else []
+                    },
+                    {
+                        "id": f"day{day+1}_lunch",
+                        "timeSlot": "midday",
+                        "startTime": "12:00",
+                        "endTime": "14:00",
+                        "activity": lunch_activity,  # From day planner
+                        "title": lunch_activity,
+                        "description": f"Experience authentic {lunch_restaurant.get('cuisine', 'local')} cuisine" if lunch_restaurant else "Enjoy local cuisine",
+                        "location": lunch_restaurant.get("location", request.destination) if lunch_restaurant else request.destination,
+                        "duration": "2 hours",
+                        "type": "meal",
+                        "budget": request.budget / (trip_days * 6),
+                        "restaurant": lunch_restaurant,
+                        "booking_url": lunch_restaurant.get("link") if lunch_restaurant else None
+                    },
+                    {
+                        "id": f"day{day+1}_afternoon",
+                        "timeSlot": "afternoon",
+                        "startTime": "14:00",
+                        "endTime": "18:00",
+                        "activity": afternoon_activity,  # Real activity from agent
+                        "title": afternoon_activity,
+                        "description": f"Explore {request.destination}'s {request.interests[0] if request.interests else 'cultural'} attractions",
+                        "location": request.destination,
+                        "duration": "4 hours",
+                        "type": "activity",
+                        "budget": request.budget / (trip_days * 3),
+                        "recommendations": agent_data["activities"][1:2] if len(agent_data["activities"]) > 1 else []
+                    },
+                    {
+                        "id": f"day{day+1}_evening",
+                        "timeSlot": "evening",
+                        "startTime": "19:00",
+                        "endTime": "22:00",
+                        "activity": dinner_activity,  # From day planner
+                        "title": dinner_activity,
+                        "description": f"Savor {dinner_restaurant.get('cuisine', 'exquisite')} dishes" if dinner_restaurant else "Evening dining experience",
+                        "location": dinner_restaurant.get("location", request.destination) if dinner_restaurant else request.destination,
+                        "duration": "3 hours",
+                        "type": "meal",
+                        "budget": request.budget / (trip_days * 4),
+                        "restaurant": dinner_restaurant,
+                        "booking_url": dinner_restaurant.get("link") if dinner_restaurant else None
+                    }
+                ]
+            }
+            daily_plans.append(day_plan)
+        
+        # Create comprehensive itinerary response
+        itinerary_response = {
             "status": "success",
-            "itinerary": {
-                "destination": request.destination,
-                "start_date": request.start_date,
-                "end_date": request.end_date,
-                "plan": itinerary
+            "itinerary_id": f"itin_{int(datetime.now().timestamp())}",
+            "created_at": datetime.now().isoformat(),
+            "destination": request.destination,
+            "start_date": request.start_date,
+            "end_date": request.end_date,
+            "duration_days": trip_days,
+            "travelers": request.travelers,
+            "total_budget": request.budget,
+            "interests": request.interests,
+            "pace": request.pace,
+            "daily_plans": daily_plans,
+            "recommendations": {
+                "flights": agent_data["flights"],
+                "hotels": agent_data["hotels"],
+                "restaurants": agent_data["restaurants"],
+                "activities": agent_data["activities"]
+            },
+            "ai_analysis": agent_data["analysis"],
+            "export_format": {
+                "version": "1.0",
+                "type": "travelai_itinerary",
+                "exportable": True
+            },
+            "journey_data": {
+                "total_activities": len(daily_plans) * 4,
+                "completed": 0,
+                "progress_percentage": 0,
+                "levels": trip_days,
+                "current_level": 1,
+                "badges": [
+                    {"id": "explorer", "name": "Explorer", "icon": "🗺️", "unlocked": False},
+                    {"id": "foodie", "name": "Foodie", "icon": "🍴", "unlocked": False},
+                    {"id": "adventurer", "name": "Adventurer", "icon": "🎯", "unlocked": False}
+                ]
             }
         }
         
+        # Auto-save to Convex if user is authenticated
+        try:
+            # Import Convex client
+            from convex import ConvexClient
+            convex_url = os.getenv("CONVEX_URL")
+            
+            if convex_url:
+                convex_client = ConvexClient(convex_url)
+                
+                # Note: In production, get actual user ID from authentication
+                # For now, we'll include instructions for frontend to save
+                itinerary_response["save_instructions"] = "Frontend should save this to Convex using richItineraries.saveFromBackend"
+                logger.info(f"Itinerary ready to be saved to Convex: {itinerary_response['itinerary_id']}")
+        except Exception as e:
+            logger.warning(f"Could not prepare Convex save: {e}")
+        
+        return itinerary_response
+        
     except Exception as e:
-        logger.error(f"Smart planner error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Smart planner error: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Failed to generate itinerary",
+                "message": "Unable to connect to travel planning services. Please ensure all API services are configured.",
+                "details": str(e),
+                "required_services": ["OpenRouter API", "Amadeus API", "Tavily API"]
+            }
+        )
+
 
 @app.post("/api/planner/save")
-async def save_itinerary(itinerary: Dict[str, Any]):
-    """Save itinerary (placeholder)"""
-    return {
-        "status": "success",
-        "message": "Itinerary saved",
-        "id": datetime.now().timestamp()
-    }
+async def save_itinerary(request: Dict[str, Any]):
+    """Save itinerary to Convex database"""
+    try:
+        from convex import ConvexClient
+        convex_url = os.getenv("CONVEX_URL")
+        
+        if not convex_url:
+            raise HTTPException(status_code=500, detail="Convex URL not configured")
+        
+        convex_client = ConvexClient(convex_url)
+        
+        # Transform field names from snake_case to camelCase for Convex
+        journey_data = request.get('journey_data', {})
+        transformed_journey = {
+            "totalActivities": journey_data.get('total_activities', 0),
+            "completed": journey_data.get('completed', 0),
+            "progressPercentage": journey_data.get('progress_percentage', 0),
+            "levels": journey_data.get('levels', 1),
+            "currentLevel": journey_data.get('current_level', 1),
+            "badges": journey_data.get('badges', [])
+        }
+        
+        # Save to Convex
+        result = convex_client.mutation(
+            "richItineraries:saveFromBackend",
+            {
+                "userId": request.get('user_id'),  # Should come from frontend
+                "itineraryData": {
+                    "itineraryId": request.get('itinerary_id'),
+                    "destination": request.get('destination'),
+                    "startDate": request.get('start_date'),
+                    "endDate": request.get('end_date'),
+                    "durationDays": request.get('duration_days'),
+                    "travelers": request.get('travelers'),
+                    "totalBudget": request.get('total_budget'),
+                    "interests": request.get('interests', []),
+                    "pace": request.get('pace', 'moderate'),
+                    "dailyPlans": request.get('daily_plans', []),
+                    "recommendations": request.get('recommendations', {}),
+                    "aiAnalysis": request.get('ai_analysis', ''),
+                    "exportFormat": request.get('export_format', {}),
+                    "journeyData": transformed_journey
+                }
+            }
+        )
+        
+        return {
+            "status": "success",
+            "message": "Itinerary saved to Convex",
+            "convex_id": str(result),
+            "saved_at": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Save itinerary error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/planner/export/{itinerary_id}")
+async def export_itinerary(itinerary_id: str, format: str = "json"):
+    """Export itinerary in various formats"""
+    try:
+        # TODO: Fetch from database/cache
+        # For now, return a sample export format
+        
+        if format == "json":
+            return {
+                "status": "success",
+                "format": "json",
+                "itinerary_id": itinerary_id,
+                "download_url": f"/api/planner/download/{itinerary_id}.json",
+                "content": {
+                    "message": "Export functionality will be implemented with database integration"
+                }
+            }
+        elif format == "pdf":
+            return {
+                "status": "success",
+                "format": "pdf",
+                "message": "PDF export coming soon"
+            }
+        else:
+            raise HTTPException(status_code=400, detail="Unsupported format")
+            
+    except Exception as e:
+        logger.error(f"Export error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 # ============= AI CHAT =============
 
@@ -788,7 +1112,7 @@ async def plan_trip_with_agent(request: TripRequest):
         except Exception as e:
             logger.error(f"Agent streaming error: {e}", exc_info=True)
             error_thought = AgentThought(
-                action="error",
+                action=AgentAction.ERROR,
                 content=str(e),
                 service=None,
                 data=None

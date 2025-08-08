@@ -18,6 +18,7 @@ import type * as chats from "../chats.js";
 import type * as groupSync from "../groupSync.js";
 import type * as journeys from "../journeys.js";
 import type * as moodTracking from "../moodTracking.js";
+import type * as richItineraries from "../richItineraries.js";
 import type * as scrapbook from "../scrapbook.js";
 import type * as searchCache from "../searchCache.js";
 import type * as slots from "../slots.js";
@@ -39,6 +40,7 @@ declare const fullApi: ApiFromModules<{
   groupSync: typeof groupSync;
   journeys: typeof journeys;
   moodTracking: typeof moodTracking;
+  richItineraries: typeof richItineraries;
   scrapbook: typeof scrapbook;
   searchCache: typeof searchCache;
   slots: typeof slots;

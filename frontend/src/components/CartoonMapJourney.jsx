@@ -190,9 +190,15 @@ function DailyProgress({ dailyProgress }) {
 }
 
 export default function CartoonMapJourney({ tripId }) {
+  // Require tripId - no fallbacks
+  if (!tripId) {
+    return null;
+  }
+  
   const journey = useQuery(api.journeys.getJourney, { tripId });
   const createJourney = useMutation(api.journeys.createJourney);
   const updateProgress = useMutation(api.journeys.updateProgress);
+  const updateMapTheme = useMutation(api.journeys.updateMapTheme);
   
   const [selectedLevel, setSelectedLevel] = useState(null);
   const [showBadgeDetail, setShowBadgeDetail] = useState(null);
@@ -242,12 +248,7 @@ export default function CartoonMapJourney({ tripId }) {
   };
 
   if (!journey) {
-    return (
-      <div className="bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 rounded-lg p-8 text-center text-white">
-        <div className="animate-spin w-8 h-8 border-4 border-white border-t-transparent rounded-full mx-auto mb-4"></div>
-        <p>Loading your journey...</p>
-      </div>
-    );
+    return null;
   }
 
   const levelPositions = generateLevelPositions(journey.totalLevels);
@@ -322,9 +323,18 @@ export default function CartoonMapJourney({ tripId }) {
           <select 
             className="text-sm border-none bg-transparent focus:outline-none"
             value={journey.mapTheme}
-            onChange={(e) => {
-              // TODO: Update map theme
-              console.log('Theme changed:', e.target.value);
+            onChange={async (e) => {
+              const newTheme = e.target.value;
+              try {
+                if (updateMapTheme) {
+                  await updateMapTheme({
+                    journeyId: journey._id,
+                    theme: newTheme
+                  });
+                }
+              } catch (error) {
+                console.error('Failed to update map theme:', error);
+              }
             }}
           >
             <option value="adventure">🎯 Adventure</option>

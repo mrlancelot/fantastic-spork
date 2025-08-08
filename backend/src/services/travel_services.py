@@ -225,7 +225,7 @@ class AILookupService:
         }
         
         data = {
-            "model": "openai/gpt-4o-mini",
+            "model": "z-ai/glm-4.5",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
             "max_tokens": 100

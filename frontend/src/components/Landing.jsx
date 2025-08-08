@@ -18,7 +18,6 @@ import { Button, Card, CardContent } from './ui';
 import { useCurrentUser } from '../hooks/useCurrentUser';
 import { TripList } from './TripList';
 import { SignInButton, SignOutButton, SignUpButton } from '@clerk/clerk-react';
-import Navigation from './Navigation';
 
 const Landing = () => {
   const navigate = useNavigate();
@@ -73,15 +72,12 @@ const Landing = () => {
     // Store form data in localStorage
     localStorage.setItem('tripData', JSON.stringify(formData));
     
-    // Navigate to itinerary page
-    navigate('/itinerary');
+    // Navigate to smart planner with trip data
+    navigate('/planner', { state: { tripData: formData } });
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      {/* Navigation */}
-      <Navigation />
-      
       {/* Auth Header */}
       <div className="absolute top-4 right-4 z-10">
         {isSignedIn ? (
@@ -295,11 +291,12 @@ const Landing = () => {
         <div className="pb-16 px-4">
           <div className="max-w-6xl mx-auto">
             <div className="flex justify-between items-center mb-8">
-              <div />
+              <h2 className="text-2xl font-bold text-gray-800">My Trips</h2>
               <Button 
                 onClick={() => setShowTripForm(true)}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white font-semibold"
               >
+                <Sparkles className="w-5 h-5 mr-2" />
                 Plan New Trip
               </Button>
             </div>
@@ -308,18 +305,57 @@ const Landing = () => {
         </div>
       )}
 
+      {/* Plan Trip Button or Form Section */}
+      {!isSignedIn && !showTripForm && (
+        <div className="pb-20 px-4">
+          <div className="max-w-2xl mx-auto text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <h2 className="text-3xl font-bold text-gray-800 mb-4">
+                Ready to Start Your Adventure?
+              </h2>
+              <p className="text-lg text-gray-600 mb-8">
+                Let our AI create the perfect itinerary for your group trip
+              </p>
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setShowTripForm(true)}
+                className="inline-flex items-center gap-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-8 py-4 rounded-xl font-semibold shadow-lg text-lg"
+              >
+                <Sparkles className="w-6 h-6" />
+                Plan Your Trip
+                <ArrowRight className="w-6 h-6" />
+              </motion.button>
+            </motion.div>
+          </div>
+        </div>
+      )}
+
       {/* Form Section */}
-      {(!isSignedIn || showTripForm) && (
+      {showTripForm && (
         <div className="pb-20 px-4">
           <div className="max-w-2xl mx-auto">
             {showTripForm && (
               <div className="mb-6 text-center">
                 <Button 
                   variant="outline"
-                  onClick={() => setShowTripForm(false)}
+                  onClick={() => {
+                    setShowTripForm(false);
+                    setEditingTripId(null);
+                    setFormData({
+                      destination: 'Buenos Aires and Patagonia',
+                      dates: 'November 2024',
+                      travelers: 6,
+                      departureCities: ['San Francisco', 'NYC']
+                    });
+                  }}
                   className="mb-4"
                 >
-                  ← Back to My Trips
+                  ← Back {isSignedIn ? 'to My Trips' : ''}
                 </Button>
               </div>
             )}

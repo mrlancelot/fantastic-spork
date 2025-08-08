@@ -63,6 +63,91 @@ export default defineSchema({
     .index("by_trip", ["tripId"])
     .index("by_trip_day", ["tripId", "day"]),
   
+  // New comprehensive itinerary table for master agent data
+  richItineraries: defineTable({
+    userId: v.id("users"),
+    itineraryId: v.string(), // External ID from backend
+    destination: v.string(),
+    startDate: v.string(),
+    endDate: v.string(),
+    durationDays: v.number(),
+    travelers: v.number(),
+    totalBudget: v.number(),
+    interests: v.array(v.string()),
+    pace: v.string(),
+    
+    // Daily plans with time slots
+    dailyPlans: v.array(v.object({
+      day: v.number(),
+      date: v.string(),
+      dayName: v.string(),
+      slots: v.array(v.object({
+        id: v.string(),
+        timeSlot: v.string(),
+        startTime: v.string(),
+        endTime: v.string(),
+        title: v.string(),
+        description: v.string(),
+        location: v.string(),
+        type: v.string(),
+        budget: v.number(),
+        completed: v.optional(v.boolean()),
+        restaurant: v.optional(v.any()),
+        recommendations: v.optional(v.array(v.any())),
+        activity: v.optional(v.string()),      // For display compatibility
+        duration: v.optional(v.string()),      // Time duration info
+        booking_url: v.optional(v.string()),   // Restaurant booking links
+      })),
+      weather: v.optional(v.any()),
+    })),
+    
+    // Recommendations from master agent
+    recommendations: v.object({
+      flights: v.array(v.any()),
+      hotels: v.array(v.any()),
+      restaurants: v.array(v.any()),
+      activities: v.array(v.any()),
+    }),
+    
+    // AI analysis and insights
+    aiAnalysis: v.string(),
+    
+    // Export metadata
+    exportFormat: v.object({
+      version: v.string(),
+      type: v.string(),
+      exportable: v.boolean(),
+    }),
+    
+    // Journey gamification data
+    journeyData: v.object({
+      totalActivities: v.number(),
+      completed: v.number(),
+      progressPercentage: v.number(),
+      levels: v.number(),
+      currentLevel: v.number(),
+      badges: v.array(v.object({
+        id: v.string(),
+        name: v.string(),
+        icon: v.string(),
+        unlocked: v.boolean(),
+      })),
+    }),
+    
+    // Metadata
+    createdAt: v.number(),
+    updatedAt: v.number(),
+    lastAccessedAt: v.number(),
+    isActive: v.boolean(), // Currently active itinerary
+    isShared: v.boolean(), // Shared with other users
+    sharedWith: v.optional(v.array(v.id("users"))),
+  })
+    .index("by_user", ["userId"])
+    .index("by_itinerary_id", ["itineraryId"])
+    .index("by_active", ["userId", "isActive"])
+    .index("by_dates", ["startDate", "endDate"])
+    .index("by_destination", ["destination"]),
+  
   chats: defineTable({
     userId: v.id("users"),
     tripId: v.optional(v.id("trips")),
