@@ -5,7 +5,7 @@ const ConfettiContext = createContext();
 export function ConfettiProvider({ children }) {
   const [confettiEnabled, setConfettiEnabled] = useState(() => {
     const saved = localStorage.getItem('confettiEnabled');
-    return saved !== null ? JSON.parse(saved) : true;
+    return saved !== null ? JSON.parse(saved) : false; // Default to OFF
   });
 
   const toggleConfetti = () => {

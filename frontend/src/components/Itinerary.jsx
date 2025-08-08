@@ -68,17 +68,19 @@ const Itinerary = () => {
         ? '' 
         : 'http://localhost:8000';
       
-      const response = await fetch(`${apiUrl}/api/generate-itinerary`, {
+      const response = await fetch(`${apiUrl}/api/planner/smart`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           destination: data.destination,
-          dates: data.dates,
-          travelers: data.travelers,
-          departure_cities: data.departureCities,
-          trip_type: 'group travel'
+          start_date: data.dates?.split(' to ')[0] || new Date().toISOString().split('T')[0],
+          end_date: data.dates?.split(' to ')[1] || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+          travelers: data.travelers || 1,
+          interests: data.interests || [],
+          budget: data.budget || 1000,
+          pace: 'moderate'
         }),
       });
 

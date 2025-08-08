@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from 'convex/react';
 import { api } from '../../convex/_generated/api';
+import { useUser } from '@clerk/clerk-react';
 import { 
   Users, 
   UserPlus, 
@@ -523,7 +524,8 @@ export default function GroupSync({ tripId }) {
     );
   }
 
-  const currentUser = groupMembers?.find(member => member.clerkId === 'current_user'); // TODO: Get actual current user
+  const { user } = useUser();
+  const currentUser = groupMembers?.find(member => member.clerkId === user?.id);
   const isLeader = currentUser?.role === 'leader';
 
   return (
@@ -578,9 +580,12 @@ export default function GroupSync({ tripId }) {
             <GroupMemberCard
               key={member._id}
               member={member}
-              isCurrentUser={member.clerkId === 'current_user'} // TODO: Fix
+              isCurrentUser={member.clerkId === user?.id}
               canManage={isLeader}
-              onRemove={() => {}} // TODO: Implement
+              onRemove={() => {
+                console.log('Remove member:', member.clerkId);
+                // TODO: Implement member removal mutation
+              }}
             />
           ))}
         </div>

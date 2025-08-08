@@ -25,7 +25,7 @@ const timeSlotConfig = {
 };
 
 const SlotCard = ({ slot, slotIndex, onComplete, completed }) => {
-  const config = timeSlotConfig[slot.time_slot] || timeSlotConfig.midday;
+  const config = timeSlotConfig[slot.timeSlot || slot.time_slot] || timeSlotConfig.midday;
   
   return (
     <motion.div
@@ -40,7 +40,7 @@ const SlotCard = ({ slot, slotIndex, onComplete, completed }) => {
           </div>
           <div>
             <h4 className="font-semibold text-gray-800 capitalize">
-              {slot.time_slot}
+              {slot.timeSlot || slot.time_slot}
             </h4>
             <p className="text-sm text-gray-600 flex items-center gap-1">
               <Clock className="w-3 h-3" />
@@ -68,7 +68,7 @@ const SlotCard = ({ slot, slotIndex, onComplete, completed }) => {
       {/* Activity Content */}
       <div className="space-y-2">
         <h5 className="font-medium text-gray-800">
-          {slot.activity}
+          {slot.title || slot.activity}
         </h5>
         <p className="text-sm text-gray-600">
           {slot.description}

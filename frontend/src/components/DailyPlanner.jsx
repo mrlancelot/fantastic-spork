@@ -387,6 +387,8 @@ export default function DailyPlanner({ tripId, date }) {
 
   const [showModal, setShowModal] = useState(false);
   const [selectedSlotType, setSelectedSlotType] = useState(null);
+  const [editingSlot, setEditingSlot] = useState(null);
+  const [editModal, setEditModal] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -434,8 +436,28 @@ export default function DailyPlanner({ tripId, date }) {
   };
 
   const handleEditSlot = (slot) => {
-    // TODO: Implement edit functionality
-    console.log('Edit slot:', slot);
+    setEditingSlot(slot);
+    setEditModal(true);
+  };
+
+  const handleUpdateSlot = async (updatedData) => {
+    try {
+      await updateSlot({
+        slotId: editingSlot._id,
+        updates: {
+          title: updatedData.title,
+          description: updatedData.description,
+          startTime: updatedData.startTime,
+          endTime: updatedData.endTime,
+          location: updatedData.location
+        }
+      });
+      setEditModal(false);
+      setEditingSlot(null);
+    } catch (error) {
+      console.error('Error updating slot:', error);
+      alert('Failed to update activity. Please try again.');
+    }
   };
 
   const handleDeleteSlot = async (slotId) => {

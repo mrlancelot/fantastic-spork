@@ -569,11 +569,14 @@ export default function Scrapbook({ tripId, slotId }) {
   const entries = useQuery(api.scrapbook.getUserScrapbook, { tripId }) || [];
   const addEntry = useMutation(api.scrapbook.addScrapbookEntry);
   const deleteEntry = useMutation(api.scrapbook.deleteScrapbookEntry);
+  const updateEntry = useMutation(api.scrapbook.updateScrapbookEntry);
   
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState(null);
   const [filterType, setFilterType] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [editingEntry, setEditingEntry] = useState(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const filteredEntries = entries
     .filter(entry => filterType === 'all' || entry.type === filterType)
@@ -606,6 +609,30 @@ export default function Scrapbook({ tripId, slotId }) {
 
   const getEntryTypeCount = (type) => {
     return entries.filter(entry => entry.type === type).length;
+  };
+
+  const handleEditEntry = (entry) => {
+    setEditingEntry(entry);
+    setShowEditModal(true);
+  };
+
+  const handleUpdateEntry = async (updatedData) => {
+    try {
+      if (updateEntry) {
+        await updateEntry({
+          entryId: editingEntry._id,
+          title: updatedData.title,
+          content: updatedData.content,
+          tags: updatedData.tags,
+          isPublic: updatedData.isPublic
+        });
+      }
+      setShowEditModal(false);
+      setEditingEntry(null);
+    } catch (error) {
+      console.error('Error updating entry:', error);
+      alert('Failed to update entry. Please try again.');
+    }
   };
 
   return (
@@ -712,7 +739,7 @@ export default function Scrapbook({ tripId, slotId }) {
               <ScrapbookEntry
                 key={entry._id}
                 entry={entry}
-                onEdit={() => {}} // TODO: Implement edit
+                onEdit={() => handleEditEntry(entry)}
                 onDelete={handleDeleteEntry}
                 onClick={setSelectedEntry}
               />

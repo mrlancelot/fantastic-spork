@@ -186,7 +186,7 @@ class AILookupService:
         }
         
         data = {
-            "model": "openai/gpt-4o-mini",  # Switch to more reliable model
+            "model": "z-ai/glm-4.5",  # Switch to more reliable model
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1,
             "max_tokens": 100
@@ -213,7 +213,7 @@ class AILookupService:
         }
         
         data = {
-            "model": "openai/gpt-4o-mini",  # Switch to more reliable model
+            "model": "z-ai/glm-4.5",  # Switch to more reliable model
             "messages": [
                 {"role": "system", "content": "You are a flight data analyst. Always respond with valid JSON only, no explanations."},
                 {"role": "user", "content": prompt}

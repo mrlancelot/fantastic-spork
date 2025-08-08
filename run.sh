@@ -8,10 +8,11 @@ NC='\033[0m' # No Color
 
 # Function to display usage
 usage() {
-    echo "Usage: $0 [frontend|backend|convex|all]"
+    echo "Usage: $0 [frontend|backend|convex|both|all]"
     echo "  frontend - Run the frontend development server"
     echo "  backend  - Run the backend API server"
-    echo "  convex   - Run Convex development server"
+    echo "  convex   - Run Convex development server (requires configuration)"
+    echo "  both     - Run frontend and backend (without Convex)"
     echo "  all      - Run all three services (frontend, backend, convex)"
     exit 1
 }
@@ -70,37 +71,101 @@ run_convex() {
         npm install
     fi
     
+    # Check if Convex is configured
+    if [ ! -f ".env.local" ] || ! grep -q "VITE_CONVEX_URL" .env.local 2>/dev/null; then
+        echo -e "${RED}Convex is not configured yet!${NC}"
+        echo -e "${BLUE}Please configure Convex first by running:${NC}"
+        echo -e "  cd frontend"
+        echo -e "  npx convex dev"
+        echo -e "${BLUE}Then follow the prompts to set up your Convex project.${NC}"
+        echo -e "${BLUE}After configuration, run this script again.${NC}"
+        return 1
+    fi
+    
     echo -e "${GREEN}Starting Convex development server...${NC}"
-    npx convex dev
+    npx convex dev --once
 }
 
 # Function to run all services
 run_all() {
     echo -e "${BLUE}Starting all services (Frontend, Backend, Convex)...${NC}"
     
+    # Check if Convex is configured before attempting to run all
+    cd frontend
+    if [ ! -f ".env.local" ] || ! grep -q "VITE_CONVEX_URL" .env.local 2>/dev/null; then
+        echo -e "${RED}Warning: Convex is not configured.${NC}"
+        echo -e "${BLUE}Running only Frontend and Backend. Configure Convex separately.${NC}"
+        cd ..
+        
+        # Run backend in background
+        (run_backend) &
+        BACKEND_PID=$!
+        
+        # Wait a bit for backend to start
+        sleep 3
+        
+        # Run frontend in background
+        (run_frontend) &
+        FRONTEND_PID=$!
+        
+        echo -e "${GREEN}Services are running:${NC}"
+        echo -e "${GREEN}  Backend PID:  $BACKEND_PID  (http://localhost:8000)${NC}"
+        echo -e "${GREEN}  Frontend PID: $FRONTEND_PID (http://localhost:5173)${NC}"
+        echo -e "${BLUE}Press Ctrl+C to stop all services${NC}"
+        
+        # Wait for processes
+        wait $BACKEND_PID $FRONTEND_PID
+    else
+        cd ..
+        
+        # Run backend in background
+        (run_backend) &
+        BACKEND_PID=$!
+        
+        # Run convex in background
+        (run_convex) &
+        CONVEX_PID=$!
+        
+        # Wait a bit for backend and convex to start
+        sleep 5
+        
+        # Run frontend in background
+        (run_frontend) &
+        FRONTEND_PID=$!
+        
+        echo -e "${GREEN}All services are running:${NC}"
+        echo -e "${GREEN}  Backend PID:  $BACKEND_PID  (http://localhost:8000)${NC}"
+        echo -e "${GREEN}  Convex PID:   $CONVEX_PID   (Convex Dashboard)${NC}"
+        echo -e "${GREEN}  Frontend PID: $FRONTEND_PID (http://localhost:5173)${NC}"
+        echo -e "${BLUE}Press Ctrl+C to stop all services${NC}"
+        
+        # Wait for all processes
+        wait $BACKEND_PID $CONVEX_PID $FRONTEND_PID
+    fi
+}
+
+# Function to run frontend and backend only
+run_both() {
+    echo -e "${BLUE}Starting Frontend and Backend...${NC}"
+    
     # Run backend in background
     (run_backend) &
     BACKEND_PID=$!
     
-    # Run convex in background
-    (run_convex) &
-    CONVEX_PID=$!
-    
-    # Wait a bit for backend and convex to start
-    sleep 5
+    # Wait a bit for backend to start
+    sleep 3
     
     # Run frontend in background
     (run_frontend) &
     FRONTEND_PID=$!
     
-    echo -e "${GREEN}All services are running:${NC}"
-    echo -e "${GREEN}  Backend PID:  $BACKEND_PID  (http://localhost:8000)${NC}"
-    echo -e "${GREEN}  Convex PID:   $CONVEX_PID   (Convex Dashboard)${NC}"
-    echo -e "${GREEN}  Frontend PID: $FRONTEND_PID (http://localhost:5173)${NC}"
+    echo -e "${GREEN}Services are running:${NC}"
+    echo -e "${GREEN}  Backend:  http://localhost:8000${NC}"
+    echo -e "${GREEN}  Frontend: http://localhost:5173${NC}"
     echo -e "${BLUE}Press Ctrl+C to stop all services${NC}"
     
-    # Wait for all processes
-    wait $BACKEND_PID $CONVEX_PID $FRONTEND_PID
+    # Wait for processes
+    wait $BACKEND_PID $FRONTEND_PID
 }
 
 # Main script
@@ -113,6 +178,10 @@ case "$1" in
         ;;
     convex)
         run_convex
+        ;;
+    both)
+        trap 'echo -e "${RED}Stopping services...${NC}"; kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit' INT
+        run_both
         ;;
     all)
         trap 'echo -e "${RED}Stopping all services...${NC}"; kill $BACKEND_PID $CONVEX_PID $FRONTEND_PID 2>/dev/null; exit' INT

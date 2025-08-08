@@ -68,13 +68,13 @@ const SortableSlot = ({ slot, slotIndex, dayIndex, onComplete, completed }) => {
       <div className="p-6 pl-12">
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
-            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium text-white bg-gradient-to-r ${getSlotColor(slot.time_slot)} mb-3`}>
-              <span className="mr-2">{getSlotEmoji(slot.time_slot)}</span>
-              {slot.time_slot.charAt(0).toUpperCase() + slot.time_slot.slice(1)}
+            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium text-white bg-gradient-to-r ${getSlotColor(slot.timeSlot || slot.time_slot)} mb-3`}>
+              <span className="mr-2">{getSlotEmoji(slot.timeSlot || slot.time_slot)}</span>
+              {(slot.timeSlot || slot.time_slot || '').charAt(0).toUpperCase() + (slot.timeSlot || slot.time_slot || '').slice(1)}
             </div>
             
             <h3 className={`text-xl font-bold mb-2 ${completed ? 'text-green-800 line-through' : 'text-gray-800'}`}>
-              {slot.activity}
+              {slot.title || slot.activity}
             </h3>
             
             <p className={`text-gray-600 mb-3 ${completed ? 'text-green-600' : ''}`}>

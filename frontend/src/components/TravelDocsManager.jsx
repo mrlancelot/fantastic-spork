@@ -268,11 +268,14 @@ function UploadModal({ isOpen, onClose, selectedDocType, onUpload, tripId }) {
       const result = await response.json();
       
       // Save to Convex with extracted data
+      // Generate a proper file URL (in production, this would be from a cloud storage service)
+      const fileUrl = result.file_url || `${window.location.origin}/uploads/${result.document_id || Date.now()}`;
+      
       await onUpload({
         tripId: tripId,
         docType: selectedDocType,
         title: title,
-        fileUrl: `https://example.com/uploads/${result.document_id}`, // Mock URL
+        fileUrl: fileUrl,
         extractedData: result.extracted_data,
       });
       
