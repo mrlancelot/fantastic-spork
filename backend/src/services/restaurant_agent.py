@@ -1,12 +1,9 @@
 import os
-from llama_index.core.agent.workflow import ReActAgent
-from llama_index.llms.google_genai import GoogleGenAI
-from llama_index.tools.mcp import BasicMCPClient
-from llama_index.tools.mcp.base import McpToolSpec
+import aiohttp
+import json
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from typing import List
-from llama_index.core.agent.workflow import AgentStream, AgentOutput, ToolCallResult, ToolCall
+from typing import List, Optional, Dict, Any
 import logging
 
 load_dotenv()
@@ -26,153 +23,157 @@ class RestaurantOutput(BaseModel):
     restaurants: List[Restaurant] = Field(description="the list of restaurants")
 
 class RestaurantAgent:
-    """Agent for scraping restaurant information using MCP (Model Context Protocol) tools."""
+    """Agent for scraping restaurant information using Tavily API directly."""
     
     def __init__(self, api_token: str = None):
-        """Initialize the MCP agent with API token."""
+        """Initialize the agent with API token."""
         self.api_token = api_token or os.getenv("TAVILY_API_KEY")
         if not self.api_token:
             raise ValueError("TAVILY_API_KEY is required")
         
-        self.agent = None
+        self.base_url = "https://api.tavily.com/search"
         self._initialized = False
     
     async def initialize(self):
-        """Initialize the MCP client and agent."""
+        """Initialize the agent (compatibility method)."""
         if self._initialized:
             return
-            
-        try:
-            # Create MCP client
-            http_client = BasicMCPClient(f"https://mcp.tavily.com/mcp/?tavilyApiKey={self.api_token}")
-            
-            # Create MCP tool specification
-            mcp_tool_spec = McpToolSpec(
-                client=http_client,
-                include_resources=False
-            )
-            
-            # Get tools from MCP
-            tools = await mcp_tool_spec.to_tool_list_async()
-
-            tool_names = [tool.metadata.name for tool in tools]
-            logger.info(f"Loaded MCP tools: {tool_names}")
-            
-            # Create the agent with better error handling
-            try:
-                llm = GoogleGenAI(
-                    model="gemini-2.5-pro",
-                    api_key=os.getenv("GOOGLE_API_KEY"),
-                    temperature=0.1,
-                    max_tokens=8192,
-                    max_retries=3,
-                    timeout=60.0
-                )
-                logger.info("Google GenAI LLM initialized successfully for restaurant agent")
-            except Exception as llm_error:
-                logger.error(f"Failed to initialize Google GenAI LLM for restaurant agent: {llm_error}")
-                raise Exception(f"LLM initialization failed: {llm_error}")
-            
-            self.agent = ReActAgent(
-                tools=tools,
-                name="restaurant_agent",
-                description="Extracts the top restaurants",
-                llm=llm,
-                system_prompt="""You are a restaurant search expert with comprehensive web scraping capabilities. Your tools include:
-
-scrape_as_markdown: Extract content from any webpage with bot detection bypass
-Structured extractors: Fast, reliable data from major platforms
-Browser automation: Navigate, click, type, screenshot for complex interactions
-
-Your goal is to find the best restaurant options by:
-1. Searching major restaurant review sites (Tabelog, Yelp, OpenTable, TripAdvisor, Google Maps)
-2. Using scrape_as_markdown to extract comprehensive restaurant information
-3. Extracting detailed restaurant data including:
-   - Restaurant names and cuisine types
-   - Complete addresses with neighborhood/district information
-   - Phone numbers and website URLs
-   - Operating hours and reservation information
-   - Ratings and review counts from multiple sources
-   - Price ranges and average cost per person
-   - Special features (outdoor seating, delivery, takeout, etc.)
-   - Popular dishes and menu highlights
-   - Photos and image URLs when available
-
-IMPORTANT:
-- Always use "scrape_as_markdown" for webpage content extraction
-- Always provide accurate, real restaurant data with current information
-- Try multiple sites if needed for comprehensive results
-- Focus on finding at least 3-5 different restaurant options with varying cuisines, price points, and locations
-- NEVER RETURN EMPTY RESULTS - always return at least 2-3 restaurants if available
-- Prioritize highly-rated restaurants with good reviews and reasonable prices
-- Include direct booking/contact URLs for each restaurant when available
-- Focus on restaurants that are currently open and accepting customers
-
-You MUST return your response in the exact JSON format with a 'restaurants' field containing a list of restaurant objects.""",
-                output_cls=RestaurantOutput,
-            )
-            
-            self._initialized = True
-            
-        except Exception as e:
-            raise Exception(f"Failed to initialize MCP agent: {e}")
+        self._initialized = True
+        logger.info("Restaurant agent initialized with Tavily API")
     
     async def scrape_restaurants(self, query: str = None, stream: bool = False) -> RestaurantOutput:
-        """Scrape restaurant information using the MCP agent."""
+        """Search for restaurants using Tavily API."""
         if not self._initialized:
             await self.initialize()
         
         try:
-            default_query = "Give me the markdown of the top 3 highest rated restaurants in Tokyo"
-            if stream:
-                handler = self.agent.run(query or default_query)
-                current_agent = None
-                async for event in handler.stream_events():
-                    if isinstance(event, AgentStream):
-                        print(event.delta, end="", flush=True)
-                    if (
-                        hasattr(event, "current_agent_name")
-                        and event.current_agent_name != current_agent
-                    ):
-                        current_agent = event.current_agent_name
-                        print(f"\n{'='*50}")
-                        print(f"🤖 Agent: {current_agent}")
-                        print(f"{'='*50}\n")
-                    elif isinstance(event, AgentOutput):
-                        if event.response.content:
-                            print("📤 Output:", event.response.content)
-                        if event.tool_calls:
-                            print(
-                            "🛠️  Planning to use tools:",
-                            [call.tool_name for call in event.tool_calls],
-                        )
-                    elif isinstance(event, ToolCallResult):
-                        print(f"🔧 Tool Result ({event.tool_name}):")
-                        print(f"  Arguments: {event.tool_kwargs}")
-                        print(f"  Output: {event.tool_output}")
-                    elif isinstance(event, ToolCall):
-                        print(f"🔨 Calling Tool: {event.tool_name}")
-                        print(f"  With arguments: {event.tool_kwargs}")
-                result = await handler
-                return result.structured_response
-            else:
-                response = await self.agent.run(query or default_query)
-                return response.structured_response
+            # Default query if none provided
+            if not query:
+                query = "Give me the top 3 highest rated restaurants in Tokyo"
+            
+            # Make sure we're searching for restaurants
+            if "restaurant" not in query.lower():
+                query = f"restaurants {query}"
+            
+            logger.info(f"Searching for restaurants: {query}")
+            
+            # Call Tavily API
+            headers = {"Content-Type": "application/json"}
+            payload = {
+                "api_key": self.api_token,
+                "query": query,
+                "search_depth": "advanced",
+                "include_answer": True,
+                "include_raw_content": False,
+                "max_results": 10
+            }
+            
+            async with aiohttp.ClientSession() as session:
+                async with session.post(self.base_url, headers=headers, json=payload, timeout=30) as response:
+                    if response.status != 200:
+                        logger.error(f"Tavily API error: {response.status}")
+                        return RestaurantOutput(restaurants=[])
+                    
+                    data = await response.json()
+                    
+                    # Parse results
+                    restaurants = []
+                    
+                    # Try to extract restaurants from search results
+                    for result in data.get('results', [])[:5]:  # Limit to 5 restaurants
+                        try:
+                            # Extract restaurant info from the search result
+                            title = result.get('title', '')
+                            content = result.get('content', '')
+                            url = result.get('url', '')
+                            
+                            # Parse rating if available
+                            rating = 4.0  # Default rating
+                            if 'rating' in content.lower():
+                                # Try to extract rating
+                                import re
+                                rating_match = re.search(r'(\d+\.?\d*)\s*(?:stars?|rating|\/5)', content.lower())
+                                if rating_match:
+                                    try:
+                                        rating = float(rating_match.group(1))
+                                    except:
+                                        pass
+                            
+                            # Extract cuisine type
+                            cuisine = "International"
+                            cuisine_types = ["italian", "japanese", "chinese", "french", "american", "mexican", 
+                                           "thai", "indian", "korean", "vietnamese", "mediterranean", "spanish"]
+                            for c in cuisine_types:
+                                if c in content.lower() or c in title.lower():
+                                    cuisine = c.capitalize()
+                                    break
+                            
+                            # Extract location from content
+                            location = "City Center"
+                            if 'located' in content.lower():
+                                loc_parts = content.lower().split('located')
+                                if len(loc_parts) > 1:
+                                    location = loc_parts[1].split('.')[0].strip()[:50]
+                            
+                            # Create restaurant object
+                            restaurant = Restaurant(
+                                name=title.split('-')[0].strip() if title else f"Restaurant {len(restaurants)+1}",
+                                cuisine=cuisine,
+                                rating=rating,
+                                location=location,
+                                lunch_budget="$$",
+                                dinner_budget="$$$",
+                                link=url
+                            )
+                            restaurants.append(restaurant)
+                            
+                        except Exception as e:
+                            logger.debug(f"Error parsing restaurant result: {e}")
+                            continue
+                    
+                    # If we didn't get enough restaurants from results, add some from the answer
+                    if len(restaurants) < 3 and data.get('answer'):
+                        # Parse the answer for restaurant mentions
+                        answer = data['answer']
+                        lines = answer.split('\n')
+                        
+                        for line in lines:
+                            if len(restaurants) >= 5:
+                                break
+                            
+                            # Look for restaurant names (usually in bold or numbered lists)
+                            if any(char in line for char in ['*', '-', '1', '2', '3', '4', '5']):
+                                # Extract potential restaurant name
+                                import re
+                                name_match = re.search(r'[*\-\d.]\s*\*?\*?([^*\-\n]+)', line)
+                                if name_match:
+                                    name = name_match.group(1).strip()
+                                    if len(name) > 3 and len(name) < 100:
+                                        # Create a basic restaurant entry
+                                        restaurant = Restaurant(
+                                            name=name,
+                                            cuisine="Various",
+                                            rating=4.2,
+                                            location="See details",
+                                            lunch_budget="$$",
+                                            dinner_budget="$$$",
+                                            link=f"https://www.google.com/search?q={name.replace(' ', '+')}"
+                                        )
+                                        
+                                        # Avoid duplicates
+                                        if not any(r.name == name for r in restaurants):
+                                            restaurants.append(restaurant)
+                    
+                    logger.info(f"Found {len(restaurants)} restaurants")
+                    return RestaurantOutput(restaurants=restaurants)
+                    
         except Exception as e:
             logger.error(f"Error in scraping restaurants: {e}")
             return RestaurantOutput(restaurants=[])
     
     async def run_custom_query(self, query: str) -> RestaurantOutput:
-        """Run a custom query using the MCP agent."""
-        if not self._initialized:
-            await self.initialize()
-        
-        try:
-            response = await self.agent.run(query)
-            return response.structured_response
-        except Exception as e:
-            logger.error(f"Error in running custom query: {e}")
-            return RestaurantOutput(restaurants=[])
+        """Run a custom query (compatibility method)."""
+        return await self.scrape_restaurants(query)
 
 
 # Convenience function for backward compatibility

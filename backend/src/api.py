@@ -88,6 +88,17 @@ class SmartPlannerRequest(BaseModel):
     budget: int
     pace: str = "moderate"
 
+# Import agent - Add src directory to path properly
+import sys
+current_dir = Path(__file__).parent
+sys.path.insert(0, str(current_dir))
+logger.info(f"Added to sys.path: {current_dir}")
+
+from agents.master_agent import MasterTravelAgent, TripRequest, AgentThought
+from fastapi.responses import StreamingResponse
+import asyncio
+import json
+
 # ============= HELPER FUNCTIONS =============
 
 def resolve_airport_code(city: str) -> str:
@@ -755,6 +766,63 @@ async def chat_agent(request: ChatRequest):
         "response": response,
         "model": "gemini-1.5-flash"
     }
+
+# ============= MASTER AGENT ENDPOINTS =============
+
+@app.post("/api/agent/plan")
+async def plan_trip_with_agent(request: TripRequest):
+    """Master agent trip planning with streaming"""
+    logger.info(f"Received trip planning request for {request.destination}")
+    logger.debug(f"Full request: {request.dict()}")
+    
+    async def event_generator():
+        agent = MasterTravelAgent()
+        try:
+            logger.debug("Starting agent stream...")
+            async for thought in agent.plan_trip_stream(request):
+                # Format as Server-Sent Event
+                event_data = json.dumps(thought.dict())
+                logger.debug(f"Streaming thought: {thought.action} - {thought.content[:100]}...")
+                yield f"data: {event_data}\n\n"
+                await asyncio.sleep(0.1)  # Small delay for streaming effect
+        except Exception as e:
+            logger.error(f"Agent streaming error: {e}", exc_info=True)
+            error_thought = AgentThought(
+                action="error",
+                content=str(e),
+                service=None,
+                data=None
+            )
+            yield f"data: {json.dumps(error_thought.dict())}\n\n"
+        finally:
+            logger.info("Agent stream completed")
+            # Send completion signal
+            yield "data: [DONE]\n\n"
+    
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable nginx buffering
+        }
+    )
+
+@app.post("/api/agent/quick-search")
+async def quick_search(request: ChatRequest):
+    """Quick search using master agent"""
+    agent = MasterTravelAgent()
+    try:
+        response = await agent.quick_search(request.message)
+        return {
+            "status": "success",
+            "response": response,
+            "model": "glm-4.5"
+        }
+    except Exception as e:
+        logger.error(f"Quick search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn

@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Home, Calendar, Search, FileText, Brain, Map, Trophy, Users, Heart, BookOpen, Cloud, Camera } from 'lucide-react';
+import { Home, Calendar, Search, FileText, Brain, Map, Trophy, Users, Heart, BookOpen, Cloud, Camera, Bot } from 'lucide-react';
 import { AuthWrapper } from './components/AuthWrapper';
 import { ConfettiProvider } from './contexts/ConfettiContext';
 import ConfettiToggle from './components/ConfettiToggle';
@@ -14,6 +14,7 @@ import HotelSearch from './components/HotelSearch';
 import DailyPlanner from './components/DailyPlanner';
 import CartoonMapJourney from './components/CartoonMapJourney';
 import AIChat from './components/AIChat';
+import AgentChat from './components/AgentChat';
 import TravelDocsManager from './components/TravelDocsManager';
 import Achievements from './components/Achievements';
 import MoodTracker from './components/MoodTracker';
@@ -27,6 +28,7 @@ function Navigation() {
   
   const navItems = [
     { path: '/', label: 'Home', icon: Home },
+    { path: '/agent', label: 'AI Agent', icon: Bot },
     { path: '/planner', label: 'Planner', icon: Brain },
     { path: '/journey', label: 'Journey', icon: Map },
     { path: '/achievements', label: 'Achievements', icon: Trophy },
@@ -211,6 +213,7 @@ function App() {
             <Routes>
             {/* Main Pages */}
             <Route path="/" element={<Landing />} />
+            <Route path="/agent" element={<AgentChat />} />
             <Route path="/planner" element={<SmartPlanner />} />
             <Route path="/achievements" element={<AchievementsPage />} />
             
