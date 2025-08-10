@@ -14,7 +14,6 @@ from playwright.async_api import async_playwright, Page
 from bs4 import BeautifulSoup
 import random
 
-# ==================== Data Extraction Utilities ====================
 
 class FlightDataExtractor:
     """Utilities for extracting and cleaning flight data"""
