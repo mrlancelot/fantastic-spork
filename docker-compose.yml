@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: travelai-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+      - CONVEX_URL=${CONVEX_URL}
+      - CONVEX_DEPLOYMENT=${CONVEX_DEPLOYMENT}
+      - SCRAPER_HEADLESS=true
+    volumes:
+      - ./backend/logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - travelai-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: travelai-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://backend:8000
+      - VITE_CLERK_PUBLISHABLE_KEY=${VITE_CLERK_PUBLISHABLE_KEY}
+      - VITE_CONVEX_URL=${VITE_CONVEX_URL}
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - travelai-network
+
+networks:
+  travelai-network:
+    driver: bridge
+
+volumes:
+  logs:

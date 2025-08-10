@@ -93,18 +93,14 @@ class MasterTravelAgent:
         env_vars = {
             "OPENROUTER_API_KEY": bool(os.getenv("OPENROUTER_API_KEY")),
             "TAVILY_API_KEY": bool(os.getenv("TAVILY_API_KEY")),
-            "AMADEUS_API_KEY": bool(os.getenv("AMADEUS_API_KEY")),
-            "AMADEUS_Secret": bool(os.getenv("AMADEUS_Secret")),
-            "BRIGHT_DATA_API_TOKEN": bool(os.getenv("BRIGHT_DATA_API_TOKEN")),
             "GOOGLE_API_KEY": bool(os.getenv("GOOGLE_API_KEY"))
         }
         logger.debug(f"Environment variables status: {env_vars}")
         
         # Initialize services (lazy loading)
         self.flight_service = None
-        self.hotel_agent = None
-        self.restaurant_agent = None
         self.hotel_service = None
+        self.restaurant_service = None
         self.activity_service = None
         self.market_insights = None
         self.web_search = WebSearchTool()
@@ -131,38 +127,37 @@ class MasterTravelAgent:
         if not self.flight_service:
             logger.debug("Initializing flight service...")
             try:
-                # Direct import from services directory
-                from services.flights import AmadeusFlightService, FlightSearchRequest
-                self.flight_service = AmadeusFlightService()
-                self.FlightSearchRequest = FlightSearchRequest
-                logger.info("Flight service initialized successfully")
+                # Use new scraper-based flight service
+                from services.flight_service import FlightService
+                self.flight_service = FlightService()
+                logger.info("Flight service (scraper) initialized successfully")
             except ImportError as e:
                 logger.error(f"Import error for flight service: {e}")
                 logger.debug(f"sys.path: {sys.path}")
             except Exception as e:
                 logger.error(f"Could not initialize flight service: {e}", exc_info=True)
                 
-        if not self.hotel_agent:
-            logger.debug("Initializing hotel agent...")
+        if not self.hotel_service:
+            logger.debug("Initializing hotel service...")
             try:
-                from services.hotel_agent import HotelAgent
-                self.hotel_agent = HotelAgent()
-                logger.info("Hotel agent initialized successfully")
+                from services.hotel_service import HotelService
+                self.hotel_service = HotelService()
+                logger.info("Hotel service (scraper) initialized successfully")
             except ImportError as e:
-                logger.error(f"Import error for hotel agent: {e}")
+                logger.error(f"Import error for hotel service: {e}")
             except Exception as e:
-                logger.error(f"Could not initialize hotel agent: {e}", exc_info=True)
+                logger.error(f"Could not initialize hotel service: {e}", exc_info=True)
                 
-        if not self.restaurant_agent:
-            logger.debug("Initializing restaurant agent...")
+        if not self.restaurant_service:
+            logger.debug("Initializing restaurant service...")
             try:
-                from services.restaurant_agent import RestaurantAgent
-                self.restaurant_agent = RestaurantAgent()
-                logger.info("Restaurant agent initialized successfully")
+                from services.restaurant_service import RestaurantService
+                self.restaurant_service = RestaurantService()
+                logger.info("Restaurant service (Tavily) initialized successfully")
             except ImportError as e:
-                logger.error(f"Import error for restaurant agent: {e}")
+                logger.error(f"Import error for restaurant service: {e}")
             except Exception as e:
-                logger.error(f"Could not initialize restaurant agent: {e}", exc_info=True)
+                logger.error(f"Could not initialize restaurant service: {e}", exc_info=True)
     
     async def _think_with_glm(self, context: str, thinking_mode: bool = True) -> str:
         """Use GLM-4.5 for reasoning with thinking mode"""
@@ -186,10 +181,10 @@ class MasterTravelAgent:
                 {
                     "role": "system",
                     "content": """You are a master travel planning agent. You have access to:
-                    1. Flight search (Amadeus API)
-                    2. Hotel search (MCP agents)
-                    3. Restaurant search (Tavily MCP)
-                    4. Activity search
+                    1. Flight search (Google Flights scraper)
+                    2. Hotel search (Booking.com scraper)
+                    3. Restaurant search (Tavily API)
+                    4. Activity search (Web search)
                     5. Web search for real-time info
                     
                     Be concise, professional, and actionable. No emojis.
@@ -233,58 +228,59 @@ class MasterTravelAgent:
         
         if not self.flight_service:
             logger.warning("Flight service not available after initialization")
-            return {"error": "Flight service not available", "outbound_flights": [], "return_flights": []}
+            return {"error": "Flight service not available", "flights": [], "total": 0}
             
         try:
-            request = self.FlightSearchRequest(
-                origin=origin,
-                destination=destination,
-                departure_date=departure_date,
-                return_date=return_date,
-                adults=1
-            )
-            response = await self.flight_service.search(request)
-            return response.dict()
+            response = await self.flight_service.search({
+                'origin': origin,
+                'destination': destination,
+                'departure_date': departure_date,
+                'return_date': return_date,
+                'adults': 1,
+                'class': 'economy'
+            })
+            return response
         except Exception as e:
             logger.error(f"Flight search error: {e}")
-            return {"error": str(e), "outbound_flights": [], "return_flights": []}
+            return {"error": str(e), "flights": [], "total": 0}
     
     async def search_hotels(self, city: str, check_in: str, check_out: str) -> Dict:
-        """Search hotels using MCP agent"""
+        """Search hotels using scraper service"""
         await self._init_services()
         
-        if not self.hotel_agent:
-            return {"error": "Hotel service not available", "hotels": []}
+        if not self.hotel_service:
+            return {"error": "Hotel service not available", "hotels": [], "total": 0}
             
         try:
-            await self.hotel_agent.initialize()
-            response = await self.hotel_agent.search_hotels(
-                city=city,
-                check_in_date=check_in,
-                check_out_date=check_out,
-                guests=2
-            )
-            return response.dict()
+            response = await self.hotel_service.search({
+                'destination': city,
+                'check_in': check_in,
+                'check_out': check_out,
+                'adults': 2,
+                'rooms': 1,
+                'children': 0
+            })
+            return response
         except Exception as e:
             logger.error(f"Hotel search error: {e}")
-            return {"error": str(e), "hotels": []}
+            return {"error": str(e), "hotels": [], "total": 0}
     
     async def search_restaurants(self, query: str) -> Dict:
-        """Search restaurants using MCP agent"""
+        """Search restaurants using service"""
         await self._init_services()
         
-        if not self.restaurant_agent:
-            return {"error": "Restaurant service not available", "restaurants": []}
+        if not self.restaurant_service:
+            return {"error": "Restaurant service not available", "restaurants": [], "total": 0}
             
         try:
-            await self.restaurant_agent.initialize()
-            response = await self.restaurant_agent.scrape_restaurants(
-                query=f"Find the best restaurants in {query}"
-            )
-            return response.dict()
+            response = await self.restaurant_service.search({
+                'destination': query,
+                'query': f"best restaurants in {query}"
+            })
+            return response
         except Exception as e:
             logger.error(f"Restaurant search error: {e}")
-            return {"error": str(e), "restaurants": []}
+            return {"error": str(e), "restaurants": [], "total": 0}
     
     async def search_web_for_context(self, query: str) -> Dict:
         """Search web for additional context"""
@@ -353,19 +349,15 @@ class MasterTravelAgent:
         )
         
         flight_summary = {
-            "found": len(flights.get('outbound_flights', [])),
-            "cheapest": None,
-            "best": []
+            "found": flights.get('total', 0),
+            "cheapest": flights.get('best_price'),
+            "best": flights.get('flights', [])[:3]
         }
         
-        if flights.get('outbound_flights'):
-            outbound = flights['outbound_flights']
-            flight_summary['cheapest'] = outbound[0].get('price', 'N/A')
-            flight_summary['best'] = outbound[:3]
-            
+        if flight_summary['found'] > 0:
             yield AgentThought(
                 action=AgentAction.ANALYZING,
-                content=f"Found {len(outbound)} flights. Cheapest: {flight_summary['cheapest']}",
+                content=f"Found {flight_summary['found']} flights. Cheapest: ${flight_summary['cheapest']}",
                 data={"flights": flight_summary['best']}
             )
         
@@ -383,8 +375,9 @@ class MasterTravelAgent:
         )
         
         hotel_summary = {
-            "found": len(hotels.get('hotels', [])),
-            "best": hotels.get('hotels', [])[:3]
+            "found": hotels.get('total', 0),
+            "best": hotels.get('hotels', [])[:3],
+            "cheapest": hotels.get('best_price')
         }
         
         if hotel_summary['best']:
@@ -404,7 +397,7 @@ class MasterTravelAgent:
         restaurants = await self.search_restaurants(request.destination)
         
         restaurant_summary = {
-            "found": len(restaurants.get('restaurants', [])),
+            "found": restaurants.get('total', 0),
             "best": restaurants.get('restaurants', [])[:3]
         }
         

@@ -15,7 +15,7 @@ pip install -r requirements.txt
 ```bash
 python main.py
 # Or directly with uvicorn:
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn src.api_server:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Install Playwright browsers (required for flight_search.py):**

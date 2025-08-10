@@ -1,16 +1,15 @@
 """
-This is only if you are deploying on Vercel.
-If you are not deploying on Vercel, you can delete this file.
+Vercel serverless function entry point for TravelAI Backend
 """
 
 import sys
 import os
 
-# Add backend to path for the new refactored structure
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
+# Add backend/src to path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend', 'src'))
 
-# Import the main FastAPI app from the refactored backend
-from app import app
+# Import the main FastAPI app
+from api_server import app
 
 # Export the FastAPI app for Vercel
-# Note: We don't need to mount it at /api since Vercel's rewrites handle that
+# Vercel will handle the /api routing through rewrites in vercel.json
