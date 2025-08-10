@@ -1,17 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Link, useLocation, useParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Home, Calendar, Search, FileText, Brain, Map, Trophy, Users, Heart, BookOpen, Cloud, Camera } from 'lucide-react';
+import { Home, Calendar, Search, FileText, Brain, Map, Trophy, Users, Heart, BookOpen, Cloud, Camera, Sparkles } from 'lucide-react';
 import { AuthWrapper } from './components/AuthWrapper';
 import { ConfettiProvider } from './contexts/ConfettiContext';
 import ConfettiToggle from './components/ConfettiToggle';
 import Landing from './components/Landing';
-import Itinerary from './components/Itinerary';
-import SmartPlanner from './components/SmartPlanner';
-import SearchInterface from './components/SearchInterface';
-import TravelDocuments from './components/TravelDocuments';
-import FlightSearch from './components/FlightSearch';
-import HotelSearch from './components/HotelSearch';
-import DailyPlanner from './components/DailyPlanner';
+import SlotBasedPlanner from './components/SlotBasedPlanner';
 import CartoonMapJourney from './components/CartoonMapJourney';
 import AIChat from './components/AIChat';
 import TravelDocsManager from './components/TravelDocsManager';
@@ -20,6 +14,7 @@ import MoodTracker from './components/MoodTracker';
 import Scrapbook from './components/Scrapbook';
 import WeatherPlanning from './components/WeatherPlanning';
 import GroupSync from './components/GroupSync';
+import ConfettiCelebration from './components/ConfettiCelebration';
 
 // Navigation Component
 function Navigation() {
@@ -27,12 +22,13 @@ function Navigation() {
   
   const navItems = [
     { path: '/', label: 'Home', icon: Home },
-    { path: '/planner', label: 'Planner', icon: Brain },
-    { path: '/journey', label: 'Journey', icon: Map },
+    { path: '/planner', label: 'Smart Planner', icon: Sparkles },
+    { path: '/journey', label: 'Journey Map', icon: Map },
     { path: '/achievements', label: 'Achievements', icon: Trophy },
     { path: '/scrapbook', label: 'Scrapbook', icon: Camera },
-    { path: '/group', label: 'Group', icon: Users },
-    { path: '/documents', label: 'Docs', icon: FileText }
+    { path: '/group', label: 'Group Sync', icon: Users },
+    { path: '/documents', label: 'Travel Docs', icon: FileText },
+    { path: '/weather', label: 'Weather', icon: Cloud }
   ];
 
   if (location.pathname === '/') return null;
@@ -77,11 +73,11 @@ function Navigation() {
 }
 
 // Page wrapper components
-function DailyPlannerPage() {
+function SlotPlannerPage() {
   const { tripId, date } = useParams();
   return (
     <div className="container mx-auto px-4 py-8">
-      <DailyPlanner tripId={tripId} date={date} />
+      <SlotBasedPlanner tripId={tripId} date={date} />
     </div>
   );
 }
@@ -172,7 +168,7 @@ function WeatherPlanningPage() {
   const { location, date } = useParams();
   return (
     <div className="container mx-auto px-4 py-8">
-      <WeatherPlanning location={decodeURIComponent(location)} date={date} />
+      <WeatherPlanning location={location ? decodeURIComponent(location) : null} date={date} />
     </div>
   );
 }
@@ -211,7 +207,7 @@ function App() {
             <Routes>
             {/* Main Pages */}
             <Route path="/" element={<Landing />} />
-            <Route path="/planner" element={<SmartPlanner />} />
+            <Route path="/planner" element={<SlotBasedPlanner />} />
             <Route path="/achievements" element={<AchievementsPage />} />
             
             {/* Feature Pages with Optional Trip ID */}
@@ -228,21 +224,17 @@ function App() {
             <Route path="/documents/:tripId" element={<DocsPage />} />
             
             {/* Specific Feature Pages */}
-            <Route path="/planner/:tripId/:date" element={<DailyPlannerPage />} />
+            <Route path="/planner/:tripId/:date" element={<SlotPlannerPage />} />
+            <Route path="/weather" element={<WeatherPlanningPage />} />
             <Route path="/weather/:location/:date" element={<WeatherPlanningPage />} />
             <Route path="/mood/:slotId/:tripId" element={<MoodTrackerPage />} />
-            
-            {/* Legacy routes */}
-            <Route path="/search" element={<SearchInterface />} />
-            <Route path="/itinerary" element={<Itinerary />} />
-            <Route path="/flights" element={<FlightSearch />} />
-            <Route path="/hotels" element={<HotelSearch />} />
           </Routes>
           
           {/* Global AI Chat - appears on all pages except landing */}
           {window.location.pathname !== '/' && <AIChat />}
           
           <ConfettiToggle />
+          <ConfettiCelebration />
         </div>
       </Router>
     </ConfettiProvider>

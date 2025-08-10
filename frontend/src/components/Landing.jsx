@@ -138,16 +138,16 @@ const Landing = () => {
                 className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-6 py-3 rounded-xl font-semibold shadow-lg"
               >
                 <Sparkles className="w-5 h-5" />
-                Smart Planner
+                Slot Planner
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
-                onClick={() => navigate('/search')}
+                onClick={() => navigate('/journey')}
                 className="flex items-center gap-2 bg-white text-blue-600 px-6 py-3 rounded-xl font-semibold shadow-lg border-2 border-blue-200"
               >
-                <Plane className="w-5 h-5" />
-                Search Travel
+                <Map className="w-5 h-5" />
+                Journey Map
               </motion.button>
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -191,10 +191,10 @@ const Landing = () => {
                 <h3 className="text-xl font-bold text-gray-800 mb-2">Smart Daily Planner</h3>
                 <p className="text-gray-600 mb-4">AI-powered 4-slot daily planning with drag-drop, weather integration, and celebration animations</p>
                 <ul className="text-sm text-gray-500 space-y-1">
-                  <li>• Morning, Midday, Evening, Night slots</li>
-                  <li>• Weather-aware planning</li>
-                  <li>• Drag & drop reordering</li>
-                  <li>• Confetti celebrations</li>
+                  <li>Morning, Midday, Evening, Night slots</li>
+                  <li>Weather-aware planning</li>
+                  <li>Drag & drop reordering</li>
+                  <li>Confetti celebrations</li>
                 </ul>
               </motion.div>
 

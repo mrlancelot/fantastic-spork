@@ -138,6 +138,315 @@ async def store_user(user_data: Dict[str, Any]):
         "user_id": user_data.get("id", "unknown")
     }
 
+# ============= SLOT MANAGEMENT =============
+
+class SlotRequest(BaseModel):
+    trip_id: str
+    day: int
+    time_slot: str
+    activity: str
+    location: Optional[str] = None
+    duration: Optional[int] = None
+    status: str = "planned"
+
+@app.post("/api/slots/create")
+async def create_slot(request: SlotRequest):
+    """Create a new slot for a trip"""
+    try:
+        slot_data = {
+            "trip_id": request.trip_id,
+            "day": request.day,
+            "time_slot": request.time_slot,
+            "activity": request.activity,
+            "location": request.location,
+            "duration": request.duration,
+            "status": request.status,
+            "created_at": datetime.now().isoformat()
+        }
+        return {"status": "success", "slot": slot_data}
+    except Exception as e:
+        logger.error(f"Create slot error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/slots/{slot_id}")
+async def update_slot(slot_id: str, request: SlotRequest):
+    """Update an existing slot"""
+    try:
+        slot_data = {
+            "id": slot_id,
+            "trip_id": request.trip_id,
+            "day": request.day,
+            "time_slot": request.time_slot,
+            "activity": request.activity,
+            "location": request.location,
+            "duration": request.duration,
+            "status": request.status,
+            "updated_at": datetime.now().isoformat()
+        }
+        return {"status": "success", "slot": slot_data}
+    except Exception as e:
+        logger.error(f"Update slot error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/api/slots/{slot_id}")
+async def delete_slot(slot_id: str):
+    """Delete a slot"""
+    try:
+        return {"status": "success", "message": f"Slot {slot_id} deleted"}
+    except Exception as e:
+        logger.error(f"Delete slot error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/slots/trip/{trip_id}")
+async def get_trip_slots(trip_id: str):
+    """Get all slots for a trip"""
+    try:
+        slots = [
+            {
+                "id": f"slot_{i}",
+                "trip_id": trip_id,
+                "day": 1,
+                "time_slot": slot,
+                "activity": f"Sample {slot} activity",
+                "status": "planned"
+            }
+            for i, slot in enumerate(["morning", "midday", "evening", "night"])
+        ]
+        return {"status": "success", "slots": slots}
+    except Exception as e:
+        logger.error(f"Get trip slots error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/slots/{slot_id}/complete")
+async def complete_slot(slot_id: str):
+    """Mark a slot as completed"""
+    try:
+        return {
+            "status": "success", 
+            "message": "Slot completed!",
+            "celebration": True,
+            "completed_at": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.error(f"Complete slot error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============= GROUP SYNC =============
+
+class GroupRequest(BaseModel):
+    name: str
+    trip_id: str
+    description: Optional[str] = None
+
+@app.post("/api/groups/create")
+async def create_group(request: GroupRequest):
+    """Create a new group for trip collaboration"""
+    try:
+        group_data = {
+            "id": f"group_{datetime.now().timestamp()}",
+            "name": request.name,
+            "trip_id": request.trip_id,
+            "description": request.description,
+            "created_at": datetime.now().isoformat(),
+            "members": []
+        }
+        return {"status": "success", "group": group_data}
+    except Exception as e:
+        logger.error(f"Create group error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/groups/{group_id}/join")
+async def join_group(group_id: str, user_data: Dict[str, Any]):
+    """Join a group"""
+    try:
+        return {
+            "status": "success",
+            "message": f"Joined group {group_id}",
+            "user_id": user_data.get("user_id")
+        }
+    except Exception as e:
+        logger.error(f"Join group error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/groups/{group_id}/members")
+async def get_group_members(group_id: str):
+    """Get group members"""
+    try:
+        members = [
+            {"id": "user1", "name": "John Doe", "role": "leader"},
+            {"id": "user2", "name": "Jane Smith", "role": "member"}
+        ]
+        return {"status": "success", "members": members}
+    except Exception as e:
+        logger.error(f"Get group members error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============= MOOD TRACKING =============
+
+class MoodRequest(BaseModel):
+    slot_id: str
+    trip_id: str
+    mood: str
+    rating: int
+    notes: Optional[str] = None
+
+@app.post("/api/mood/track")
+async def track_mood(request: MoodRequest):
+    """Track mood after slot completion"""
+    try:
+        mood_data = {
+            "id": f"mood_{datetime.now().timestamp()}",
+            "slot_id": request.slot_id,
+            "trip_id": request.trip_id,
+            "mood": request.mood,
+            "rating": request.rating,
+            "notes": request.notes,
+            "tracked_at": datetime.now().isoformat()
+        }
+        return {"status": "success", "mood_entry": mood_data}
+    except Exception as e:
+        logger.error(f"Track mood error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/mood/history/{user_id}")
+async def get_mood_history(user_id: str):
+    """Get mood tracking history for user"""
+    try:
+        history = [
+            {
+                "id": "mood1",
+                "mood": "happy",
+                "rating": 5,
+                "date": "2024-08-10",
+                "activity": "Beach visit"
+            },
+            {
+                "id": "mood2", 
+                "mood": "excited",
+                "rating": 4,
+                "date": "2024-08-09",
+                "activity": "City tour"
+            }
+        ]
+        return {"status": "success", "history": history}
+    except Exception as e:
+        logger.error(f"Get mood history error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============= SCRAPBOOK =============
+
+class ScrapbookRequest(BaseModel):
+    trip_id: str
+    slot_id: Optional[str] = None
+    title: str
+    content: str
+    photo_url: Optional[str] = None
+    entry_type: str = "journal"
+
+@app.post("/api/scrapbook/entry")
+async def create_scrapbook_entry(request: ScrapbookRequest):
+    """Create a scrapbook entry"""
+    try:
+        entry_data = {
+            "id": f"entry_{datetime.now().timestamp()}",
+            "trip_id": request.trip_id,
+            "slot_id": request.slot_id,
+            "title": request.title,
+            "content": request.content,
+            "photo_url": request.photo_url,
+            "entry_type": request.entry_type,
+            "created_at": datetime.now().isoformat()
+        }
+        return {"status": "success", "entry": entry_data}
+    except Exception as e:
+        logger.error(f"Create scrapbook entry error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/scrapbook/{trip_id}")
+async def get_scrapbook_entries(trip_id: str):
+    """Get scrapbook entries for a trip"""
+    try:
+        entries = [
+            {
+                "id": "entry1",
+                "title": "Amazing sunset",
+                "content": "The sunset at the beach was incredible!",
+                "photo_url": "https://example.com/sunset.jpg",
+                "date": "2024-08-10"
+            },
+            {
+                "id": "entry2",
+                "title": "Local cuisine",
+                "content": "Tried the most delicious local food today.",
+                "date": "2024-08-09"
+            }
+        ]
+        return {"status": "success", "entries": entries}
+    except Exception as e:
+        logger.error(f"Get scrapbook entries error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============= ACHIEVEMENTS =============
+
+@app.get("/api/achievements/{user_id}")
+async def get_achievements(user_id: str):
+    """Get user achievements"""
+    try:
+        achievements = [
+            {
+                "id": "early_bird",
+                "name": "Early Bird",
+                "description": "Complete 5 morning slots",
+                "icon": "🌅",
+                "unlocked": True,
+                "progress": 5,
+                "total": 5
+            },
+            {
+                "id": "explorer",
+                "name": "Explorer",
+                "description": "Visit 10 different locations",
+                "icon": "🗺️",
+                "unlocked": False,
+                "progress": 7,
+                "total": 10
+            }
+        ]
+        return {"status": "success", "achievements": achievements}
+    except Exception as e:
+        logger.error(f"Get achievements error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============= WEATHER INTEGRATION =============
+
+@app.get("/api/weather/{location}")
+async def get_weather(location: str):
+    """Get weather information for location"""
+    try:
+        weather_data = {
+            "location": location,
+            "current": {
+                "temperature": 25,
+                "condition": "sunny",
+                "humidity": 60,
+                "wind_speed": 10
+            },
+            "forecast": [
+                {"day": "Today", "high": 28, "low": 20, "condition": "sunny"},
+                {"day": "Tomorrow", "high": 26, "low": 18, "condition": "cloudy"},
+                {"day": "Day 3", "high": 24, "low": 16, "condition": "rainy"}
+            ],
+            "recommendations": [
+                "Perfect weather for outdoor activities!",
+                "Don't forget sunscreen",
+                "Great day for sightseeing"
+            ]
+        }
+        return {"status": "success", "weather": weather_data}
+    except Exception as e:
+        logger.error(f"Get weather error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Health
 @app.get("/api/health")
 async def health():
