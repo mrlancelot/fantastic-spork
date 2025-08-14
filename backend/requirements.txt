@@ -1,52 +1,49 @@
-# ============================================
-# TravelAI Backend Requirements
-# Python 3.9+ required
-# ============================================
-
-# Core FastAPI Framework
+# FastAPI and Server
 fastapi==0.116.1
 uvicorn[standard]==0.35.0
 
 # Data Validation
 pydantic==2.11.7
-pydantic-settings==2.5.2
 
-# HTTP Clients & Async Support
-httpx==0.27.0
+# HTTP and Async
+httpx>=0.28.1
 aiohttp==3.12.15
-requests==2.32.4
 python-multipart==0.0.20
 
-# AI/ML Services
-# OpenRouter (GPT-5 Mini) - uses httpx, no additional package needed
-google-generativeai==0.8.4  # Gemini as fallback option
+# Core LLM packages first
+llama-index-core==0.13.0
 
-# Travel APIs
-amadeus==12.0.0  # Flight, hotel, and travel services
+# LLM providers
+llama-index-llms-google-genai==0.3.0
+llama-index-llms-openai==0.5.2
+llama-index-llms-openai-like==0.5.0
 
-# Database & Storage
-convex==0.7.0  # Convex database client
+# Tools
+llama-index-tools-mcp==0.3.0
+llama-index-tools-tavily-research==0.4.0
 
-# Environment & Configuration
+# Main llama-index package (installs after core and tools)
+llama-index==0.13.0
+
+# Google Services
+google-generativeai==0.8.4
+
+# Amadeus API for Flight Search
+amadeus==12.0.0
+
+# Environment Variables
 python-dotenv==1.0.1
 
-# ============================================
-# Optional Dependencies (uncomment if needed)
-# ============================================
+# Web Scraping (Required for flights and hotels)
+playwright==1.49.0
+beautifulsoup4==4.12.3
 
-# LlamaIndex for advanced agent capabilities (currently disabled)
-# llama-index==0.10.58
-# llama-index-core==0.10.58
-# llama-index-llms-openai==0.1.31
-# llama-index-llms-google-genai==0.1.11
-# llama-index-tools-mcp==0.2.0
+# Cerebras SDK
+cerebras-cloud-sdk
 
-# Additional tools for web scraping (if needed)
-# playwright==1.40.0
-# beautifulsoup4==4.12.2
-
-# Development tools (optional)
-# pytest==7.4.3
-# pytest-asyncio==0.21.1
-# black==23.12.1
-# flake8==6.1.0
+# Development Tools
+ruff==0.8.4
+yt-dlp
+faster-whisper
+openai
+ctransformers

@@ -10,7 +10,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'backend'))
 
 # Import the main FastAPI app from the refactored backend
-from app import app
+from main import app
 
 # Export the FastAPI app for Vercel
 # Note: We don't need to mount it at /api since Vercel's rewrites handle that
