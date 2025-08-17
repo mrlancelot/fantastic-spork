@@ -2,6 +2,7 @@ import json
 import os
 import hashlib
 import time
+import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 import logging
@@ -11,6 +12,7 @@ import httpx
 from ddgs import DDGS
 from llama_index.llms.google_genai import GoogleGenAI
 from service.restaurant.models import UserPreferences, Restaurant, RestaurantSearchResponse
+from utils.convex_client import get_db
 
 # Load environment variables
 load_dotenv()
@@ -21,6 +23,7 @@ logger = logging.getLogger(__name__)
 class RestaurantFinder:
     def __init__(self):
         self.ddgs = DDGS()
+        self.db = get_db()
         
         # Simple in-memory cache
         self._cache = {}  # key: query_hash, value: (timestamp, results)
@@ -627,7 +630,15 @@ Return JSON array sorted by match_score (highest first). Include top 15 only."""
         # Calculate search time
         search_time = (datetime.now() - start_time).total_seconds()
         
-        return RestaurantSearchResponse(
+        # Save all found restaurants to database
+        try:
+            saved_ids = await self.save_to_db(analyzed_restaurants)
+            logger.info(f"Saved {len(saved_ids)} restaurants to database")
+        except Exception as e:
+            logger.error(f"Failed to save restaurants to database: {e}")
+            saved_ids = []
+        
+        response = RestaurantSearchResponse(
             query_used=mega_query[:500] + "..." if len(mega_query) > 500 else mega_query,
             total_results_found=len(search_results.get("text", [])),
             restaurants=analyzed_restaurants,
@@ -636,9 +647,12 @@ Return JSON array sorted by match_score (highest first). Include top 15 only."""
                 "text_results": len(search_results.get("text", [])),
                 "from_cache": search_results.get("cached", False),
                 "llm_analysis": self.llm_client is not None,
-                "search_mode": search_mode
+                "search_mode": search_mode,
+                "saved_restaurant_ids": saved_ids
             }
         )
+        
+        return response
     
     def build_near_me_query(self, prefs: UserPreferences) -> str:
         query_parts = []
@@ -683,3 +697,58 @@ Return JSON array sorted by match_score (highest first). Include top 15 only."""
             query_parts.append(f"({country_sites[prefs.country]})")
         
         return " ".join(filter(None, query_parts))
+    
+    async def save_to_db(self, restaurants: List[Restaurant], itinerary_id: Optional[str] = None, user_id: Optional[str] = None) -> List[str]:
+        """
+        Save restaurant search results to database
+        
+        Args:
+            restaurants: List of Restaurant objects to save
+            itinerary_id: Optional itinerary ID to link restaurants to
+            user_id: Optional user ID
+            
+        Returns:
+            List of saved restaurant IDs
+        """
+        saved_ids = []
+        
+        for restaurant in restaurants:
+            try:
+                # Convert Restaurant object to dict if needed
+                if hasattr(restaurant, 'dict'):
+                    rest_data = restaurant.dict()
+                else:
+                    rest_data = restaurant if isinstance(restaurant, dict) else {}
+                
+                # Transform restaurant data to match Convex schema
+                # Use city name as address if address is missing (address is required field)
+                address = rest_data.get("address") or rest_data.get("location") or rest_data.get("city", "Unknown Location")
+                
+                restaurant_data = {
+                    "itineraryId": itinerary_id,
+                    "userId": user_id,  # Optional field
+                    "name": rest_data.get("name", "Unknown Restaurant"),
+                    "address": address,  # Required field - use city as fallback
+                    "city": rest_data.get("city", ""),
+                    "cuisine": rest_data.get("cuisine", []) if isinstance(rest_data.get("cuisine"), list) else [rest_data.get("cuisine")] if rest_data.get("cuisine") else [],
+                    "priceRange": rest_data.get("price_range"),
+                    "rating": float(rest_data.get("rating", 0)) if rest_data.get("rating") else None,
+                    "phone": rest_data.get("phone"),
+                    "website": rest_data.get("website"),
+                    "hours": rest_data.get("hours"),
+                    "reservationDate": rest_data.get("reservation_date"),
+                    "reservationTime": rest_data.get("reservation_time"),
+                    "partySize": rest_data.get("party_size"),
+                    "imageUrl": rest_data.get("image_url"),
+                    "description": rest_data.get("description"),
+                }
+                
+                # Save to database
+                restaurant_id = self.db.save_restaurant(restaurant_data)
+                saved_ids.append(restaurant_id)
+                logger.info(f"Saved restaurant {restaurant_id} to database")
+                
+            except Exception as e:
+                logger.error(f"Failed to save restaurant to database: {e}")
+                
+        return saved_ids

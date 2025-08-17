@@ -8,11 +8,13 @@ import sys
 from pathlib import Path
 import json
 import logging
+import uuid
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from scraper.google_flights_scraper import GoogleFlightsRoundTripScraper
+from utils.convex_client import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ class FlightService:
     
     def __init__(self):
         self.scraper = GoogleFlightsRoundTripScraper(headless=True)
+        self.db = get_db()
         
     async def close(self):
         """Close the scraper"""
@@ -94,6 +97,14 @@ class FlightService:
             }
             
             logger.info(f"Found {len(flights)} flights")
+            
+            # Save all search results to database
+            try:
+                saved_ids = await self.save_to_db(flights)
+                response['saved_flight_ids'] = saved_ids
+                logger.info(f"Saved {len(saved_ids)} flights to database")
+            except Exception as e:
+                logger.error(f"Failed to save flights to database: {e}")
             
             return response
             
@@ -238,6 +249,59 @@ class FlightService:
             return 6 <= hour <= 22
         except:
             return False
+    
+    async def save_to_db(self, flights: List[Dict], itinerary_id: Optional[str] = None, user_id: Optional[str] = None) -> List[str]:
+        """
+        Save flight search results to database
+        
+        Args:
+            flights: List of flight data to save
+            itinerary_id: Optional itinerary ID to link flights to
+            user_id: Optional user ID
+            
+        Returns:
+            List of saved flight IDs
+        """
+        saved_ids = []
+        
+        for flight in flights:
+            try:
+                # Transform flight data to match Convex schema
+                flight_data = {
+                    "userId": user_id or f"user_{uuid.uuid4().hex[:8]}",  # Required field, generate temp ID if not provided
+                    "origin": flight.get("origin", ""),
+                    "destination": flight.get("destination", ""),
+                    "departureDate": flight.get("departure_time", ""),
+                    "airline": flight.get("airline", "Unknown"),
+                    "flightNumber": flight.get("flight_number", f"FL{uuid.uuid4().hex[:6].upper()}"),
+                    "price": float(flight.get("price", 0)),
+                    "currency": flight.get("currency", "USD"),
+                    "status": "searching"
+                }
+                
+                # Only add optional fields if they have values
+                if itinerary_id:
+                    flight_data["itineraryId"] = itinerary_id
+                if flight.get("return_date"):
+                    flight_data["returnDate"] = flight.get("return_date")
+                if flight.get("duration"):
+                    flight_data["duration"] = flight.get("duration")
+                if flight.get("class"):
+                    flight_data["class"] = flight.get("class")
+                if flight.get("stops") is not None:
+                    flight_data["stops"] = flight.get("stops")
+                if flight.get("booking_reference"):
+                    flight_data["bookingReference"] = flight.get("booking_reference")
+                
+                # Save to database
+                flight_id = self.db.save_flight(flight_data)
+                saved_ids.append(flight_id)
+                logger.info(f"Saved flight {flight_id} to database")
+                
+            except Exception as e:
+                logger.error(f"Failed to save flight to database: {e}")
+                
+        return saved_ids
 
 
 # Global flight service instance

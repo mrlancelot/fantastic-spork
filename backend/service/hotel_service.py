@@ -6,11 +6,13 @@ Orchestrates hotel searches using scrapers
 from typing import Dict, List, Optional
 import sys
 from pathlib import Path
+import uuid
 
 # Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from scraper.booking_scraper import BookingComScraper
+from utils.convex_client import get_db
 import logging
 
 
@@ -21,6 +23,7 @@ class HotelService:
         self.logger = logging.getLogger('HotelService')
         self.scraper = BookingComScraper(headless=True)
         self.initialized = False
+        self.db = get_db()
         
     async def initialize(self):
         """Initialize the scraper"""
@@ -97,6 +100,14 @@ class HotelService:
             }
             
             self.logger.info(f"Found {len(hotels)} hotels")
+            
+            # Save all search results to database
+            try:
+                saved_ids = await self.save_to_db(hotels)
+                response['saved_hotel_ids'] = saved_ids
+                self.logger.info(f"Saved {len(saved_ids)} hotels to database")
+            except Exception as e:
+                self.logger.error(f"Failed to save hotels to database: {e}")
             
             return response
             
@@ -182,7 +193,7 @@ class HotelService:
             score = 100
             
             # Price factor
-            min_price = cheapest.get('price', 1)
+            min_price = cheapest.get('price', 1) or 1  # Avoid division by zero
             price_ratio = hotel.get('price', min_price) / min_price
             score -= (price_ratio - 1) * 20
             
@@ -285,16 +296,103 @@ class HotelService:
                 locations.add(loc)
         return sorted(list(locations))[:10]  # Top 10 locations
     
-    def _extract_price_value(self, price_str: str) -> float:
-        """Extract numeric price from string like '$150' or '150 USD'"""
+    def _extract_price_value(self, price_input) -> float:
+        """Extract numeric price from string like '$150' or '$2,962' or float value"""
         import re
-        if not price_str:
+        
+        # Handle float/int input directly
+        if isinstance(price_input, (int, float)):
+            # Validate price range
+            price = float(price_input)
+            if price <= 0 or price > 100000:
+                self.logger.warning(f"Price {price} out of valid range, using 0")
+                return 0
+            return price
+        
+        # Handle string input
+        if not price_input or not isinstance(price_input, str):
             return 0
-        # Extract numbers from string
-        numbers = re.findall(r'\d+', price_str)
+            
+        # Remove commas, dollar signs, and other currency symbols
+        cleaned = str(price_input).replace(',', '').replace('$', '').replace('€', '').replace('£', '').strip()
+        
+        # Extract all numbers and join them (handles cases like "2 962")
+        numbers = re.findall(r'\d+\.?\d*', cleaned)
         if numbers:
-            return float(numbers[0])
+            try:
+                # Take the first complete number found
+                price = float(numbers[0])
+                # Validate price range
+                if price <= 0 or price > 100000:
+                    self.logger.warning(f"Extracted price {price} out of valid range, using 0")
+                    return 0
+                return price
+            except (ValueError, IndexError):
+                return 0
         return 0
+    
+    async def save_to_db(self, hotels: List[Dict], itinerary_id: Optional[str] = None, user_id: Optional[str] = None) -> List[str]:
+        """
+        Save hotel search results to database
+        
+        Args:
+            hotels: List of hotel data to save
+            itinerary_id: Optional itinerary ID to link hotels to
+            user_id: Optional user ID
+            
+        Returns:
+            List of saved hotel IDs
+        """
+        saved_ids = []
+        
+        for hotel in hotels:
+            try:
+                # Transform hotel data to match Convex schema
+                # Extract and validate price
+                price_raw = hotel.get("price_formatted") or hotel.get("price", "0")
+                price = self._extract_price_value(price_raw)
+                
+                # Skip hotels with invalid prices
+                if price <= 0:
+                    self.logger.warning(f"Skipping hotel {hotel.get('name')} with invalid price: {price_raw}")
+                    continue
+                    
+                hotel_data = {
+                    "userId": user_id or f"user_{uuid.uuid4().hex[:8]}",  # Required field, generate temp ID if not provided
+                    "name": hotel.get("name", "Unknown Hotel"),
+                    "address": hotel.get("location", ""),
+                    "city": hotel.get("city", ""),
+                    "country": hotel.get("country", ""),
+                    "checkInDate": hotel.get("check_in", ""),
+                    "checkOutDate": hotel.get("check_out", ""),
+                    "price": price,  # Use validated price
+                    "currency": hotel.get("currency", "USD"),
+                    "status": "searching"
+                }
+                
+                # Only add optional fields if they have values
+                if itinerary_id:
+                    hotel_data["itineraryId"] = itinerary_id
+                if hotel.get("rating"):
+                    hotel_data["rating"] = float(hotel.get("rating"))
+                if hotel.get("amenities") and isinstance(hotel.get("amenities"), list):
+                    hotel_data["amenities"] = hotel.get("amenities")
+                if hotel.get("room_type"):
+                    hotel_data["roomType"] = hotel.get("room_type")
+                if hotel.get("booking_reference"):
+                    hotel_data["bookingReference"] = hotel.get("booking_reference")
+                if hotel.get("image_url"):
+                    hotel_data["imageUrl"] = hotel.get("image_url")
+                
+                # Save to database
+                hotel_id = self.db.save_hotel(hotel_data)
+                saved_ids.append(hotel_id)
+                self.logger.info(f"Saved hotel {hotel_id} to database")
+                
+            except Exception as e:
+                self.logger.error(f"Failed to save hotel to database: {e}")
+                
+        return saved_ids
 
 
 # Global hotel service instance
