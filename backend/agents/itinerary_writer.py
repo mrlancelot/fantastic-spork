@@ -13,7 +13,7 @@ from service.hotel_service import call_hotel_service
 from utils.llm_manager import get_powerful_llm
 
 
-# Set up logging
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,6 @@ class ItineraryWriterOutput(BaseModel):
     personalization: str = Field(description="Personalization note (e.g., 'Personalized for your interests: Outdoor activities, nature, adventure sports')")
     total_days: int = Field(description="Total number of days in the itinerary")
     days: List[DayItinerary] = Field(description="List of daily itineraries")
-    
     class Config:
         json_schema_extra = {
             "example": {
@@ -97,34 +96,26 @@ class ItineraryWriterOutput(BaseModel):
                 ]
             }
         }
-    
 
 class ItineraryWriter:
     """Service class for managing itinerary writing workflows."""
-    
     def __init__(self, api_token: Optional[str] = None):
         """Initialize the itinerary writer service.
-        
         Args:
             api_token: Optional API token for MCP agents
         """
         self.api_token = api_token
         self._workflow = None
         self._initialized = False
-        
         logger.info("ItineraryWriter initialized")
-    
     async def initialize(self) -> None:
         """Initialize the workflow and agents."""
         if self._initialized:
             return
-            
         try:
             logger.info("Initializing itinerary writer service...")
-            
             # Use the centralized LLM manager to get a powerful LLM
             llm = get_powerful_llm()
-            
             # Create the workflow
             # Use the new DDGS restaurant service instead of the Tavily-based one
             self._workflow = FunctionAgent(
@@ -135,14 +126,12 @@ class ItineraryWriter:
     "You are an expert travel itinerary writer and orchestrator. "
     "You are given a user's travel request and a list of tools that can help research and gather travel information. "
     "You are to orchestrate the tools to research flights, hotels, and restaurants based on the user's specific travel requirements, then compile a comprehensive itinerary. "
-    
     "Your task is to:\n"
     "1. Analyze the user's travel request to extract key details (origin, destination, dates, preferences, budget, interests)\n"
     "2. Use call_flight_service to fetch flight options based on the specified origin, destination, dates, and class preferences\n"
     "3. Use call_hotel_service to search for hotel accommodations at the destination using the travel dates\n"
     "4. Use call_restaurant_service_ddgs to find top restaurants at the destination that match the user's budget preferences and interests\n"
     "5. Compile all this information into a structured ItineraryWriterOutput format\n"
-    
     "CRITICAL INSTRUCTIONS:\n"
     "- You MUST use the available tools to gather current, accurate information\n"
     "- Extract and focus on the specific destination, dates, and preferences mentioned in the user's request\n"
@@ -158,49 +147,37 @@ class ItineraryWriter:
                     "hotels": [],
                 },
             )
-            
             self._initialized = True
             logger.info("Itinerary writer service initialized successfully")
-            
         except Exception as e:
             logger.error(f"Failed to initialize itinerary writer service: {e}")
             raise ItineraryWriterError(f"Initialization failed: {e}")
-    
     async def get_workflow(self) -> FunctionAgent:
         """Get the initialized workflow.
-        
         Returns:
             The FunctionAgent instance
-            
         Raises:
             ItineraryWriterError: If workflow is not initialized
         """
         if not self._initialized:
             await self.initialize()
-            
         if self._workflow is None:
             raise ItineraryWriterError("Workflow not properly initialized")
-            
         return self._workflow
-    
     async def run_workflow(self, query: str, ctx: Context, **kwargs) -> Any:
         """Run the workflow with a given query.
-        
         Args:
             query: The query to process
             ctx: The workflow context
             **kwargs: Additional parameters for the workflow
-            
         Returns:
             The workflow response
-            
         Raises:
             ItineraryWriterError: If workflow execution fails
         """
         try:
             workflow = await self.get_workflow()
             logger.info(f"Running itinerary workflow with query: {query}")
-            
             # Run the workflow and await the handler to get the result
             handler = workflow.run(ctx=ctx, user_msg=query, **kwargs)
             async for event in handler.stream_events():
@@ -221,28 +198,22 @@ class ItineraryWriter:
                     print(f"🔨 Calling Tool: {event.tool_name}")
                     print(f"  With arguments: {event.tool_kwargs}")
             result = await handler
-            
             logger.info("Itinerary workflow executed successfully")
             logger.info(f"Itinerary workflow result: {result}")
-            
             # The result is the final output from the workflow
             # For AgentWorkflow, this typically contains the agent's response
             return result
-            
         except Exception as e:
             logger.error(f"Itinerary workflow execution failed: {e}")
             raise ItineraryWriterError(f"Workflow execution failed: {e}")
 
-    
     def get_workflow_state(self) -> Dict[str, Any]:
         """Get the current workflow state.
-        
         Returns:
             The current workflow state
         """
         if self._workflow is None:
             return {}
-            
         return {
             "initialized": self._initialized,
             "has_workflow": self._workflow is not None,
@@ -253,31 +224,24 @@ _itinerary_writer_instance: Optional[ItineraryWriter] = None
 
 def get_itinerary_writer(api_token: Optional[str] = None) -> ItineraryWriter:
     """Get or create the itinerary writer singleton.
-    
     Args:
         api_token: Optional API token for MCP agents
-        
     Returns:
         The ItineraryWriter singleton instance
     """
     global _itinerary_writer_instance
-    
     if _itinerary_writer_instance is None:
         _itinerary_writer_instance = ItineraryWriter(api_token=api_token)
         logger.info("Created new ItineraryWriter singleton instance")
-    
     return _itinerary_writer_instance
 
 # Convenience function for backward compatibility
 def get_agent_workflow_service(api_token: Optional[str] = None) -> ItineraryWriter:
     """Get the itinerary writer instance (backward compatibility).
-    
     Args:
         api_token: Optional API token for MCP agents
-        
     Returns:
         The ItineraryWriter instance
-        
     Note:
         This function maintains backward compatibility with the old naming.
         Prefer using get_itinerary_writer() for new code.
@@ -286,13 +250,10 @@ def get_agent_workflow_service(api_token: Optional[str] = None) -> ItineraryWrit
 
 def get_agent_workflow(api_token: Optional[str] = None) -> ItineraryWriter:
     """Get the itinerary writer instance (backward compatibility).
-    
     Args:
         api_token: Optional API token for MCP agents
-        
     Returns:
         The ItineraryWriter instance
-        
     Note:
         This is a backward compatibility function that returns the service.
         Prefer using get_itinerary_writer() for new code.

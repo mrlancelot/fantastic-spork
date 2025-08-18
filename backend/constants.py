@@ -5,7 +5,7 @@ Contains country-specific review website mappings and helper functions.
 
 from typing import List, Optional, Dict
 
-# Country-specific review website mapping for targeted searches
+
 COUNTRY_REVIEW_SITES = {
     "japan": {
         "sites": ["https://tabelog.com/en/", "https://reddit.com", "https://youtube.com"],
@@ -96,7 +96,7 @@ COUNTRY_REVIEW_SITES = {
     }
 }
 
-# Country detection patterns for location-based queries
+
 COUNTRY_DETECTION_PATTERNS = {
     "japan": ["japan", "tokyo", "osaka", "kyoto", "hiroshima", "nagoya", "fukuoka", "sapporo", "yokohama", "kobe"],
     "united_states": ["usa", "america", "new york", "los angeles", "chicago", "san francisco", "miami", "boston", "seattle", "las vegas", "nyc", "la"],
@@ -110,25 +110,23 @@ COUNTRY_DETECTION_PATTERNS = {
     "canada": ["canada", "toronto", "vancouver", "montreal", "calgary", "ottawa", "edmonton", "quebec city", "winnipeg"]
 }
 
-# Price range filters for restaurant searches
+
 PRICE_RANGE_FILTERS = {
     "budget": "budget-friendly restaurants under $25 per person",
     "mid_range": "mid-range restaurants $25-50 per person", 
     "upscale": "upscale restaurants $50+ per person"
 }
 
-# Default global review sites when country not detected
+
 DEFAULT_GLOBAL_SITES = ["https://yelp.com", "https://tripadvisor.com", "https://opentable.com", "https://google.com/maps"]
 
 
 def detect_country_from_query(query: str) -> Optional[str]:
     """Detect country from query text using common city/country keywords."""
     query_lower = query.lower()
-    
     for country, keywords in COUNTRY_DETECTION_PATTERNS.items():
         if any(keyword in query_lower for keyword in keywords):
             return country
-    
     return None
 
 
@@ -136,32 +134,29 @@ def get_country_specific_sites(country: str) -> List[str]:
     """Get review sites specific to a country."""
     if country in COUNTRY_REVIEW_SITES:
         return COUNTRY_REVIEW_SITES[country]["sites"]
-    # Default to global sites if country not found
+
     return DEFAULT_GLOBAL_SITES
 
 
 def build_country_aware_search_query(base_query: str, country_sites: List[str] = None, price_range: str = None) -> str:
     """Build search query with country-specific review sites and price filtering.
-    
     Returns:
         dict: Contains 'query' and 'include_domains' keys for tavily_search
     """
     query = base_query
-    
-    # Add price range filtering if specified
+
     if price_range:
         price_filter = get_price_range_filter(price_range)
         if price_filter:
             query = f"{query} {price_filter}"
-    
-    # Return query and include_domains with full URLs
+
     if country_sites:
         return str({
             'query': f"{query} restaurant reviews",
             'include_domains': country_sites
         })
     else:
-        # Default global search domains with full URLs
+
         return str({
             'query': f"{query} restaurant reviews", 
             'include_domains': ['https://yelp.com', 'https://tripadvisor.com', 'https://opentable.com']

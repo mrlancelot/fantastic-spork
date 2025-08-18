@@ -36,7 +36,7 @@ def extract_video_info(url):
         'no_warnings': True, 
         'extract_flat': False, 
         'force_generic_extractor': False,
-        'writeinfojson': False,  # Don't write to file, just extract
+        'writeinfojson': False,
         'writethumbnail': False,
         'writesubtitles': False,
         'writeautomaticsub': False,
@@ -49,7 +49,7 @@ def extract_video_info(url):
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
-            # Sanitize info to make it JSON serializable
+
             return ydl.sanitize_info(info)
     except Exception as e:
         print(f"Error extracting video info: {e}")
@@ -93,10 +93,8 @@ def extract_activities_with_ai(text, video_title="", video_duration=0, video_met
     try:
         if not text or len(text.strip()) < 10:
             text = f"Video titled '{video_title}' with minimal description"
-        
         duration_context = f"Video duration: {video_duration} seconds" if video_duration else ""
-        
-        # Add metadata context
+
         metadata_context = ""
         if video_metadata:
             tags = video_metadata.get('tags', [])
@@ -105,7 +103,6 @@ def extract_activities_with_ai(text, video_title="", video_duration=0, video_met
                 metadata_context += f"Tags: {', '.join(tags[:10])}\n"
             if categories:
                 metadata_context += f"Categories: {', '.join(categories)}\n"
-        
         prompt = f"""Extract actionable activities from this video content.
 
 Video Title: {video_title}
@@ -137,13 +134,10 @@ Format as JSON:
   ],
   "analysis_confidence": "high/medium/low"
 }}"""
-        
-        # Combine system and user messages for Gemini
+
         full_prompt = "Extract actionable activities from video content. Focus on activities people can actually do.\n\n" + prompt
-        
-        # Use LlamaIndex Google Gemini complete method
+
         response = client.complete(full_prompt)
-        
         result = json.loads(response.text)
         activities = result.get("activities", [])
         for activity in activities:
@@ -153,7 +147,6 @@ Format as JSON:
             activity.setdefault("location", "Unknown")
             activity.setdefault("estimated_duration", 60)
             activity.setdefault("confidence_score", 0.5)
-        
         return {
             "activities": activities,
             "analysis_confidence": result.get("analysis_confidence", "medium")
@@ -176,29 +169,25 @@ Format as JSON:
 def extract_location_from_metadata(video_info):
     """Extract location information from comprehensive video metadata."""
     location_data = {}
-    
-    # Check for GPS coordinates
+
     if 'location' in video_info and video_info['location']:
         location_data['coordinates'] = video_info['location']
-    
-    # Check for location in various metadata fields
+
     location_fields = ['location', 'filming_location', 'recording_location', 'geo_location']
     for field in location_fields:
         if field in video_info and video_info[field]:
             location_data[field] = video_info[field]
-    
-    # Extract location from tags
+
     tags = video_info.get('tags', [])
     if tags:
         location_tags = [tag for tag in tags if any(keyword in tag.lower() for keyword in 
                         ['city', 'country', 'location', 'place', 'travel', 'visit'])]
         if location_tags:
             location_data['location_tags'] = location_tags
-    
-    # Check for location in description
+
     description = video_info.get('description', '')
     if description:
-        # Simple location extraction from description
+
         import re
         location_patterns = [
             r'(?:filmed|shot|recorded|taken)\s+(?:in|at)\s+([A-Z][a-zA-Z\s,]+)',
@@ -210,38 +199,31 @@ def extract_location_from_metadata(video_info):
             if matches:
                 location_data['description_locations'] = matches
                 break
-    
-    # Extract from uploader location if available
+
     if 'uploader_location' in video_info:
         location_data['uploader_location'] = video_info['uploader_location']
-    
     return location_data
 
 
 async def analyze_video_for_activities(video_url: str, provided_location: str = None):
     """
     Analyze a video URL and extract activity information.
-    
     Args:
         video_url: URL of the video to analyze
         provided_location: Optional location context (ignored, uses metadata)
-    
     Returns:
         Dictionary with video info, activities, and metadata
     """
     platform = detect_platform(video_url)
-    
-    # Extract video information
+
     video_info = extract_video_info(video_url)
     if not video_info:
         raise Exception(f"Failed to extract video information from {platform}")
-    
-    # Extract basic info
+
     title = video_info.get('title', 'Unknown')
     description = video_info.get('description', '')
     duration = video_info.get('duration', 0)
-    
-    # Extract location from metadata
+
     location_data = extract_location_from_metadata(video_info)
     detected_location = None
     if location_data:
@@ -253,20 +235,17 @@ async def analyze_video_for_activities(video_url: str, provided_location: str = 
             detected_location = location_data['location_tags'][0]
         elif 'uploader_location' in location_data:
             detected_location = location_data['uploader_location']
-    
-    # Extract activities using AI
+
     activity_analysis = extract_activities_with_ai(
         text=description,
         video_title=title,
         video_duration=duration,
         video_metadata=video_info
     )
-    
-    # Update activity locations with detected location
+
     for activity in activity_analysis.get("activities", []):
         if activity.get("location") == "Unknown" and detected_location:
             activity["location"] = detected_location
-    
     return {
         "video_info": {
             "title": title,

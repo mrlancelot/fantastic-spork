@@ -6,7 +6,7 @@ from service.restaurant.models import UserPreferences
 
 router = APIRouter(tags=["Restaurants - Search & Booking"])
 
-# Request models for different search modes
+
 class ItineraryRestaurantRequest(BaseModel):
     """Request for pre-planned itinerary restaurant search"""
     city: str = Field(description="City to search in (e.g., Tokyo, New York, Paris)")
@@ -41,10 +41,10 @@ async def search_restaurants_for_itinerary(request: ItineraryRestaurantRequest) 
     Used when creating itineraries and planning ahead.
     """
     try:
-        # Convert request to UserPreferences (auto-detect country from city)
+
         prefs = UserPreferences(
             city=request.city,
-            country="",  # Will be auto-detected from city
+            country="",
             food_type=request.food_type or "restaurant",
             party_size=request.party_size or 2,
             occasion=request.occasion,
@@ -57,11 +57,9 @@ async def search_restaurants_for_itinerary(request: ItineraryRestaurantRequest) 
             special_requirements=request.special_requirements or [],
             time=request.time
         )
-        
-        # Use restaurant finder with itinerary mode
+
         finder = RestaurantFinder()
         result = await finder.find_restaurants(prefs, search_mode="itinerary")
-        
         return {
             "status": "success",
             "mode": "itinerary_planning",
@@ -78,10 +76,10 @@ async def search_restaurants_near_me(request: NearMeRestaurantRequest) -> dict:
     Used when users are at a location and want immediate dining options.
     """
     try:
-        # Convert request to UserPreferences with location focus
+
         prefs = UserPreferences(
-            city=f"{request.current_location}, {request.city}",  # Include specific location
-            country="",  # Will be auto-detected from city
+            city=f"{request.current_location}, {request.city}",
+            country="",
             food_type=request.food_type or "restaurant",
             party_size=request.party_size or 1,
             budget_level=request.budget_level or "$$",
@@ -90,11 +88,9 @@ async def search_restaurants_near_me(request: NearMeRestaurantRequest) -> dict:
             time=request.time or "now",
             special_requirements=[f"within {request.max_distance}"] if request.max_distance else []
         )
-        
-        # Use restaurant finder with near_me mode
+
         finder = RestaurantFinder()
         result = await finder.find_restaurants(prefs, search_mode="near_me")
-        
         return {
             "status": "success",
             "mode": "near_me",
@@ -103,4 +99,3 @@ async def search_restaurants_near_me(request: NearMeRestaurantRequest) -> dict:
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Near me restaurant search failed: {str(e)}")
-

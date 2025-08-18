@@ -17,7 +17,6 @@ async def get_hotels(
 ) -> dict:
     """
     Search for hotels using GET parameters.
-    
     Args:
         destination: Destination city or location (e.g., 'Tokyo', 'Paris')
         check_in: Check-in date in YYYY-MM-DD format

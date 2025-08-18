@@ -63,12 +63,53 @@ class APIError extends Error {
   }
 }
 
-// Main API function to create itinerary
-export async function createItinerary(data: ItineraryRequest): Promise<ItineraryResponse> {
+// Job response types
+export interface JobCreationResponse {
+  status: string;
+  job_id: string;
+  itinerary_uuid: string;
+  message: string;
+  polling_interval_seconds: number;
+}
+
+export interface JobProgress {
+  message: string;
+  step: 'initializing' | 'flights' | 'hotels' | 'restaurants' | 'activities' | 'completing';
+  details: {
+    flights_found: number;
+    hotels_found: number;
+    restaurants_found: number;
+    activities_planned: number;
+    price_ranges: {
+      flights?: { min: number; max: number };
+      hotels?: { min: number; max: number };
+    };
+  };
+}
+
+export interface JobStatusResponse {
+  job_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  created_at: number;
+  started_at?: number;
+  completed_at?: number;
+  error?: string;
+  progress?: JobProgress;
+  result?: {
+    itinerary_id: string;
+    itinerary_uuid: string;
+    activity_count: number;
+    flight_count: number;
+    hotel_count: number;
+  };
+  next_step?: string;
+}
+
+// Create async itinerary job
+export async function createItineraryJob(data: ItineraryRequest): Promise<JobCreationResponse> {
   try {
-    console.log('Sending itinerary request:', data);
+    console.log('Creating itinerary job:', data);
     
-    // Use the main itinerary endpoint
     const response = await fetch(`${API_URL}/itinerary`, {
       method: 'POST',
       headers: {
@@ -80,22 +121,83 @@ export async function createItinerary(data: ItineraryRequest): Promise<Itinerary
     if (!response.ok) {
       const errorText = await response.text();
       console.error('API Error Response:', errorText);
-      throw new APIError(response.status, `Failed to create itinerary: ${response.statusText}`);
+      throw new APIError(response.status, `Failed to create itinerary job: ${response.statusText}`);
     }
 
     const result = await response.json();
-    console.log('Itinerary created successfully:', result);
+    console.log('Job created successfully:', result);
     return result;
   } catch (error) {
     console.error('API call failed:', error);
     
-    // Re-throw API errors
     if (error instanceof APIError) {
       throw error;
     }
     
-    // Network or other errors
     throw new Error('Failed to connect to the server. Please check your connection and try again.');
+  }
+}
+
+// Check job status
+export async function checkJobStatus(jobId: string): Promise<JobStatusResponse> {
+  try {
+    const response = await fetch(`${API_URL}/itinerary/status/${jobId}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new APIError(response.status, `Failed to check job status: ${response.statusText}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('Status check failed:', error);
+    
+    if (error instanceof APIError) {
+      throw error;
+    }
+    
+    throw new Error('Failed to check job status.');
+  }
+}
+
+// Get complete itinerary
+export async function getItinerary(itineraryUuid: string): Promise<ItineraryResponse> {
+  try {
+    const response = await fetch(`${API_URL}/itinerary/${itineraryUuid}`, {
+      method: 'GET',
+    });
+
+    if (!response.ok) {
+      throw new APIError(response.status, `Failed to fetch itinerary: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    
+    // Extract the itinerary data from the response
+    if (result.status === 'success' && result.itinerary) {
+      // Map backend response to expected format
+      const itinerary = result.itinerary;
+      return {
+        status: 'success',
+        title: itinerary.data?.title || 'Your Travel Itinerary',
+        personalization: itinerary.data?.personalization || '',
+        total_days: itinerary.data?.total_days || 0,
+        days: itinerary.data?.days || [],
+        trip_details: itinerary.data?.trip_details,
+        message: 'Itinerary loaded successfully'
+      };
+    }
+    
+    throw new Error('Invalid itinerary response format');
+  } catch (error) {
+    console.error('Failed to fetch itinerary:', error);
+    
+    if (error instanceof APIError) {
+      throw error;
+    }
+    
+    throw new Error('Failed to fetch itinerary details.');
   }
 }
 

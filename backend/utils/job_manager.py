@@ -22,7 +22,6 @@ class JobStatus(str, Enum):
 class JobManager:
     def __init__(self):
         self.db = get_db()
-    
     def create_job(
         self,
         job_type: str,
@@ -36,13 +35,11 @@ class JobManager:
             "retryCount": 0,
             "maxRetries": 3,
         }
-        
-        # Only add optional fields if they have values
+
         if user_id:
             job_data["userId"] = user_id
         if payload:
             job_data["payload"] = payload
-        
         try:
             saved_job_id = self.db.save_job(job_data)
             logger.info(f"Created job {saved_job_id} of type {job_type}")
@@ -50,36 +47,34 @@ class JobManager:
         except Exception as e:
             logger.error(f"Failed to create job: {e}")
             raise
-    
     def start_job(self, job_id: str) -> None:
         """Mark job as processing"""
         updates = {
             "status": JobStatus.PROCESSING,
             "startedAt": int(datetime.now().timestamp() * 1000)
         }
-        
         try:
             self.db.update_job(job_id, updates)
             logger.info(f"Started job {job_id}")
         except Exception as e:
             logger.error(f"Failed to start job {job_id}: {e}")
             raise
-    
     def complete_job(self, job_id: str, result: Any = None) -> None:
         """Mark job as completed with result"""
-        updates = {
-            "status": JobStatus.COMPLETED,
-            "completedAt": int(datetime.now().timestamp() * 1000),
-            "result": result
-        }
-        
         try:
+            current_job = self.db.query("queries:getJob", {"id": job_id})
+            current_result = current_job.get("result", {}) if current_job else {}
+            merged_result = {**current_result, **result} if result else current_result
+            updates = {
+                "status": JobStatus.COMPLETED,
+                "completedAt": int(datetime.now().timestamp() * 1000),
+                "result": merged_result
+            }
             self.db.update_job(job_id, updates)
             logger.info(f"Completed job {job_id}")
         except Exception as e:
             logger.error(f"Failed to complete job {job_id}: {e}")
             raise
-    
     def fail_job(self, job_id: str, error: str) -> None:
         """Mark job as failed with error"""
         updates = {
@@ -87,20 +82,17 @@ class JobManager:
             "completedAt": int(datetime.now().timestamp() * 1000),
             "error": error
         }
-        
         try:
             self.db.update_job(job_id, updates)
             logger.error(f"Failed job {job_id}: {error}")
         except Exception as e:
             logger.error(f"Failed to update failed job {job_id}: {e}")
             raise
-    
     def retry_job(self, job_id: str) -> None:
         """Increment retry count and reset to pending"""
         try:
-            # Get current job data to check retry count
+
             job = self.db.query("queries:getJob", {"id": job_id})
-            
             if job and job.get("retryCount", 0) < job.get("maxRetries", 3):
                 updates = {
                     "status": JobStatus.PENDING,
@@ -115,7 +107,6 @@ class JobManager:
         except Exception as e:
             logger.error(f"Failed to retry job {job_id}: {e}")
             raise
-    
     def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get job status and details"""
         try:
@@ -124,14 +115,13 @@ class JobManager:
         except Exception as e:
             logger.error(f"Failed to get job status for {job_id}: {e}")
             return None
-    
     def update_job_progress(self, job_id: str, progress_data: Dict[str, Any]) -> None:
         """Update job with progress information"""
-        updates = {
-            "result": progress_data  # Store progress in result field
-        }
-        
         try:
+            current_job = self.db.query("queries:getJob", {"id": job_id})
+            current_result = current_job.get("result", {}) if current_job else {}
+            merged_result = {**current_result, "progress": progress_data}
+            updates = {"result": merged_result}
             self.db.update_job(job_id, updates)
             logger.info(f"Updated progress for job {job_id}")
         except Exception as e:
@@ -139,7 +129,7 @@ class JobManager:
             raise
 
 
-# Singleton instance
+
 _job_manager_instance = None
 
 def get_job_manager() -> JobManager:

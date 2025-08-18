@@ -3,14 +3,14 @@ from typing import Optional
 from pydantic import BaseModel, Field
 
 
-# Price range enum for restaurant filtering
+
 class PriceRange(str, Enum):
     BUDGET = "budget"
     MID_RANGE = "mid_range"
     UPSCALE = "upscale"
 
 
-# Trip/flight enums
+
 class TripType(str, Enum):
     ROUND_TRIP = "round_trip"
     ONE_WAY = "one_way"
@@ -23,7 +23,7 @@ class TravelClass(str, Enum):
     FIRST = "first"
 
 
-# Request models
+
 class FlightRequest(BaseModel):
     origin: str = Field(description="Origin airport code or city (e.g., 'SFO', 'San Francisco')")
     destination: str = Field(description="Destination airport code or city (e.g., 'NRT', 'Tokyo')")
@@ -42,23 +42,23 @@ class HotelRequest(BaseModel):
 
 
 class ItineraryRequest(BaseModel):
-    # Flight information
+
     trip_type: TripType = TripType.ROUND_TRIP
-    from_city: str  # e.g., "SFO"
-    to_city: str    # e.g., "NRT"
-    departure_date: str  # Format: "MM/DD/YYYY"
-    return_date: Optional[str] = None  # Format: "MM/DD/YYYY"
+    from_city: str
+    to_city: str
+    departure_date: str
+    return_date: Optional[str] = None
     adults: int = 1
     travel_class: TravelClass = TravelClass.ECONOMY
 
-    # Travel interests and preferences
-    interests: str  # Free text describing travel interests and preferences
 
-    # Optional filters
+    interests: str
+
+
     price_range: Optional[PriceRange] = None
 
 
-# Demo models (kept if needed later)
+
 class Item(BaseModel):
     id: Optional[int] = None
     name: str
@@ -73,7 +73,7 @@ class User(BaseModel):
     email: str
     is_active: bool = True
 
-# Video Analysis models
+
 class ActivityType(str, Enum):
     TRAVEL = "travel"
     FOOD = "food"

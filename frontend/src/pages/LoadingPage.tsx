@@ -2,7 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, Plane, Hotel, UtensilsCrossed, Camera, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useTripContext } from '../context/TripContext';
-import { createItinerary, formatDateForAPI, mapBudgetToPriceRange, ItineraryRequest } from '../services/api';
+import { 
+  createItineraryJob, 
+  checkJobStatus, 
+  getItinerary,
+  formatDateForAPI, 
+  mapBudgetToPriceRange, 
+  ItineraryRequest
+} from '../services/api';
 
 interface LoadingStep {
   id: string;
@@ -12,14 +19,29 @@ interface LoadingStep {
   icon: React.ComponentType<{ className?: string }>;
 }
 
+// localStorage key for pending job
+const PENDING_JOB_KEY = 'pending_itinerary_job';
+
+interface PendingJob {
+  job_id: string;
+  itinerary_uuid: string;
+  started_at: number;
+  form_data: ItineraryRequest;
+}
+
 export const LoadingPage: React.FC = () => {
   const navigate = useNavigate();
   const { formData, setItineraryData, setError: setContextError } = useTripContext();
+  const [_jobId, setJobId] = useState<string | null>(null);
+  const [_itineraryUuid, setItineraryUuid] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isRetrying, setIsRetrying] = useState(false);
-  const [estimatedTime, setEstimatedTime] = useState(30); // seconds
+  const [retryCount, setRetryCount] = useState(0);
+  const pollingInterval = useRef<number | null>(null);
   const apiCallInProgress = useRef(false); // Track if API call is in progress
+  
+  const [liveMessage, setLiveMessage] = useState<string>('Preparing your itinerary...');
   
   const [steps, setSteps] = useState<LoadingStep[]>([
     {
@@ -52,14 +74,88 @@ export const LoadingPage: React.FC = () => {
     }
   ]);
 
-  const callAPIWithRetry = async (retryCount = 0) => {
-    if (!formData) {
-      navigate('/');
-      return;
+  // Clean up function
+  const cleanup = () => {
+    if (pollingInterval.current) {
+      clearInterval(pollingInterval.current);
+      pollingInterval.current = null;
     }
+  };
 
-    // Prevent duplicate API calls (React StrictMode in dev causes double useEffect)
-    if (apiCallInProgress.current && retryCount === 0) {
+  // Poll job status
+  const pollJobStatus = async (jobId: string, uuid: string) => {
+    try {
+      const status = await checkJobStatus(jobId);
+      
+      // Update progress based on status
+      if (status.progress) {
+        setLiveMessage(status.progress.message);
+        
+        // Update step status based on progress step
+        const stepMap: Record<string, number> = {
+          'flights': 0,
+          'hotels': 1,
+          'restaurants': 2,
+          'activities': 3,
+          'completing': 3
+        };
+        
+        const currentStepIndex = stepMap[status.progress.step] ?? -1;
+        if (currentStepIndex >= 0) {
+          setSteps(prevSteps => {
+            const newSteps = [...prevSteps];
+            for (let i = 0; i < newSteps.length; i++) {
+              if (i < currentStepIndex) {
+                newSteps[i].status = 'complete';
+              } else if (i === currentStepIndex) {
+                newSteps[i].status = 'loading';
+              } else {
+                newSteps[i].status = 'pending';
+              }
+            }
+            return newSteps;
+          });
+          
+          // Update progress bar
+          const progressPercent = Math.min(((currentStepIndex + 1) / 4) * 90, 90);
+          setProgress(progressPercent);
+        }
+      }
+      
+      if (status.status === 'completed') {
+        cleanup();
+        setProgress(100);
+        setSteps(prevSteps => prevSteps.map(step => ({ ...step, status: 'complete' })));
+        
+        // Fetch complete itinerary using itinerary_id from result
+        const itineraryId = status.result?.itinerary_id;
+        if (itineraryId) {
+          const itinerary = await getItinerary(itineraryId);
+          setItineraryData(itinerary);
+        } else {
+          console.error('No itinerary_id in completed job result');
+          setError('Failed to retrieve itinerary ID');
+          return;
+        }
+        
+        // Clear localStorage
+        localStorage.removeItem(PENDING_JOB_KEY);
+        
+        setTimeout(() => navigate('/itinerary'), 1000);
+      } else if (status.status === 'failed') {
+        cleanup();
+        setError(status.error || 'Itinerary creation failed');
+        localStorage.removeItem(PENDING_JOB_KEY);
+      }
+    } catch (err) {
+      console.error('Polling error:', err);
+      // Continue polling even if one check fails
+    }
+  };
+
+  // Start a new itinerary job
+  const startNewJob = async (apiRequest: ItineraryRequest, retry = 0) => {
+    if (apiCallInProgress.current && retry === 0) {
       console.log('API call already in progress, skipping duplicate call');
       return;
     }
@@ -67,9 +163,94 @@ export const LoadingPage: React.FC = () => {
 
     try {
       setError(null);
-      setIsRetrying(retryCount > 0);
+      setIsRetrying(retry > 0);
+      setRetryCount(retry);
+
+      // Create job
+      console.log('Creating job with:', apiRequest);
+      const jobResponse = await createItineraryJob(apiRequest);
       
-      // Convert form data to API format
+      setJobId(jobResponse.job_id);
+      setItineraryUuid(jobResponse.itinerary_uuid);
+      
+      // Save to localStorage for recovery
+      const pendingJob: PendingJob = {
+        job_id: jobResponse.job_id,
+        itinerary_uuid: jobResponse.itinerary_uuid,
+        started_at: Date.now(),
+        form_data: apiRequest
+      };
+      localStorage.setItem(PENDING_JOB_KEY, JSON.stringify(pendingJob));
+      
+      // Start polling
+      apiCallInProgress.current = false;
+      pollingInterval.current = setInterval(() => {
+        pollJobStatus(jobResponse.job_id, jobResponse.itinerary_uuid);
+      }, jobResponse.polling_interval_seconds * 1000);
+      
+      // Initial status check
+      await pollJobStatus(jobResponse.job_id, jobResponse.itinerary_uuid);
+      
+    } catch (err) {
+      console.error('Job creation error:', err);
+      apiCallInProgress.current = false;
+      
+      // Retry logic
+      if (retry < 3) {
+        setError('Connection failed. Retrying...');
+        setTimeout(() => {
+          startNewJob(apiRequest, retry + 1);
+        }, 2000);
+      } else {
+        setError(
+          err instanceof Error 
+            ? err.message 
+            : 'Failed to create itinerary. Please try again.'
+        );
+        setContextError('Failed to create itinerary');
+        localStorage.removeItem(PENDING_JOB_KEY);
+      }
+    } finally {
+      setIsRetrying(false);
+    }
+  };
+
+  useEffect(() => {
+    // Check for pending job in localStorage
+    const pendingJobStr = localStorage.getItem(PENDING_JOB_KEY);
+    
+    if (pendingJobStr) {
+      try {
+        const pendingJob: PendingJob = JSON.parse(pendingJobStr);
+        const ageMinutes = (Date.now() - pendingJob.started_at) / 1000 / 60;
+        
+        // Auto-resume if less than 2 minutes old
+        if (ageMinutes < 2) {
+          console.log('Resuming pending job:', pendingJob.job_id);
+          setJobId(pendingJob.job_id);
+          setItineraryUuid(pendingJob.itinerary_uuid);
+          setLiveMessage('Resuming your itinerary generation...');
+          
+          // Start polling
+          pollingInterval.current = setInterval(() => {
+            pollJobStatus(pendingJob.job_id, pendingJob.itinerary_uuid);
+          }, 5000);
+          
+          // Initial check
+          pollJobStatus(pendingJob.job_id, pendingJob.itinerary_uuid);
+          return;
+        } else {
+          // Job too old, clear it
+          localStorage.removeItem(PENDING_JOB_KEY);
+        }
+      } catch (e) {
+        console.error('Failed to parse pending job:', e);
+        localStorage.removeItem(PENDING_JOB_KEY);
+      }
+    }
+    
+    // Start fresh job if we have form data
+    if (formData) {
       const apiRequest: ItineraryRequest = {
         trip_type: formData.tripType === 'roundtrip' ? 'round_trip' : 'one_way',
         from_city: formData.fromCity,
@@ -81,100 +262,15 @@ export const LoadingPage: React.FC = () => {
         interests: formData.interests.join(', '),
         price_range: mapBudgetToPriceRange(formData.budget),
       };
-
-      // Simulate progress through steps
-      const updateSteps = (stepIndex: number, status: 'loading' | 'complete') => {
-        setSteps(prevSteps => {
-          const newSteps = [...prevSteps];
-          if (stepIndex >= 0 && stepIndex < newSteps.length) {
-            newSteps[stepIndex].status = status;
-          }
-          return newSteps;
-        });
-      };
-
-      // Start progress animation
-      let currentStep = 0;
-      const progressInterval = setInterval(() => {
-        setProgress(prev => {
-          const newProgress = Math.min(prev + 3, 90);
-          
-          // Update steps based on progress
-          if (newProgress > 25 && currentStep === 0) {
-            updateSteps(0, 'loading');
-            currentStep++;
-          } else if (newProgress > 40 && currentStep === 1) {
-            updateSteps(0, 'complete');
-            updateSteps(1, 'loading');
-            currentStep++;
-          } else if (newProgress > 60 && currentStep === 2) {
-            updateSteps(1, 'complete');
-            updateSteps(2, 'loading');
-            currentStep++;
-          } else if (newProgress > 80 && currentStep === 3) {
-            updateSteps(2, 'complete');
-            updateSteps(3, 'loading');
-            currentStep++;
-          }
-          
-          return newProgress;
-        });
-      }, 600);
-
-      // Countdown timer
-      const timerInterval = setInterval(() => {
-        setEstimatedTime(prev => Math.max(0, prev - 1));
-      }, 1000);
-
-      // Make the API call
-      console.log('Calling API with:', apiRequest);
-      const response = await createItinerary(apiRequest);
       
-      // Clear intervals
-      clearInterval(progressInterval);
-      clearInterval(timerInterval);
-      
-      // Complete the progress
-      setProgress(100);
-      
-      // Update all steps to complete
-      setSteps(prevSteps => prevSteps.map(step => ({ ...step, status: 'complete' })));
-      
-      // Save response and navigate
-      setItineraryData(response);
-      apiCallInProgress.current = false; // Reset flag on success
-      setTimeout(() => navigate('/itinerary'), 1000);
-      
-    } catch (err) {
-      console.error('API Error:', err);
-      
-      // Clear any running intervals
-      setProgress(0);
-      setEstimatedTime(30);
-      
-      // Retry logic
-      if (retryCount < 2) {
-        setError('Connection failed. Retrying...');
-        setTimeout(() => {
-          apiCallInProgress.current = false; // Reset before retry
-          callAPIWithRetry(retryCount + 1);
-        }, 2000);
-      } else {
-        apiCallInProgress.current = false; // Reset flag on final failure
-        setError(
-          err instanceof Error 
-            ? err.message 
-            : 'Failed to create itinerary. Please try again.'
-        );
-        setContextError('Failed to create itinerary');
-      }
-    } finally {
-      setIsRetrying(false);
+      startNewJob(apiRequest);
+    } else {
+      // No form data, redirect to home
+      navigate('/');
     }
-  };
-
-  useEffect(() => {
-    callAPIWithRetry();
+    
+    // Cleanup on unmount
+    return () => cleanup();
   }, []);
 
   const getStatusIcon = (status: string) => {
@@ -232,9 +328,9 @@ export const LoadingPage: React.FC = () => {
               }
             </p>
           )}
-          {!error && estimatedTime > 0 && (
-            <p className="text-xs text-neutral-400 mt-2">
-              Estimated time: {estimatedTime} seconds
+          {!error && liveMessage && (
+            <p className="text-sm text-primary-600 mt-3 font-medium animate-pulse">
+              {liveMessage}
             </p>
           )}
         </div>
@@ -250,8 +346,21 @@ export const LoadingPage: React.FC = () => {
               <div className="flex space-x-4">
                 <button
                   onClick={() => {
-                    setError(null);
-                    callAPIWithRetry();
+                    if (formData) {
+                      setError(null);
+                      const apiRequest: ItineraryRequest = {
+                        trip_type: formData.tripType === 'roundtrip' ? 'round_trip' : 'one_way',
+                        from_city: formData.fromCity,
+                        to_city: formData.destination,
+                        departure_date: formatDateForAPI(formData.startDate) || '',
+                        return_date: formData.tripType === 'roundtrip' ? formatDateForAPI(formData.endDate) : undefined,
+                        adults: formData.travelers,
+                        travel_class: formData.travelClass,
+                        interests: formData.interests.join(', '),
+                        price_range: mapBudgetToPriceRange(formData.budget),
+                      };
+                      startNewJob(apiRequest, retryCount);
+                    }
                   }}
                   disabled={isRetrying}
                   className="flex items-center space-x-2 px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"

@@ -8,14 +8,14 @@ from llama_index.core.agent.workflow import AgentStream, AgentOutput, ToolCallRe
 import logging
 from utils.llm_manager import get_powerful_llm
 
-# Import constants and helper functions
+
 from constants import (
     detect_country_from_query, 
     get_country_specific_sites, 
     build_country_aware_search_query,
 )
 
-# Import shared MCP client manager
+
 from utils.mcp_client_manager import mcp_manager
 
 from dotenv import load_dotenv
@@ -39,33 +39,27 @@ class RestaurantOutput(BaseModel):
 
 class RestaurantAgent:
     """Agent for searching and extracting restaurant information using MCP (Model Context Protocol) tools."""
-    
     def __init__(self, api_token: Optional[str] = None):
         """Initialize the MCP agent with API token."""
         self.api_token = api_token or os.getenv("TAVILY_API_KEY")
         if not self.api_token:
             raise ValueError("TAVILY_API_KEY is required")
-        
         self.agent = None
         self._initialized = False
-    
     async def initialize(self):
         """Initialize the MCP client and agent."""
         if self._initialized:
             return
-            
         try:
-            # Get Tavily tools from shared MCP client manager
+
             tools = await mcp_manager.get_tavily_tools(self.api_token)
-            
-            # Create the agent with better error handling
+
             try:
                 llm = get_powerful_llm()
                 logger.info("LLM initialized successfully for restaurant agent")
             except Exception as llm_error:
                 logger.error(f"Failed to initialize LLM for restaurant agent: {llm_error}")
                 raise Exception(f"LLM initialization failed: {llm_error}")
-            
             self.agent = ReActAgent(
                 tools=tools,
                 name="restaurant_agent",
@@ -112,29 +106,22 @@ CRITICAL RULES:
 You MUST return your response in the exact JSON format with a 'restaurants' field containing a list of restaurant objects.""",
                 output_cls=RestaurantOutput,
             )
-            
             self._initialized = True
-            
         except Exception as e:
             raise Exception(f"Failed to initialize MCP agent: {e}")
-    
     async def scrape_restaurants(self, query: str, stream: bool = False, price_range: Optional[str] = None) -> RestaurantOutput:
         """Search and extract restaurant information using the MCP agent."""
         if not self._initialized:
             await self.initialize()
-        
-        # Detect country from query
+
         country = detect_country_from_query(query)
         if country:
             logger.info(f"Detected country: {country}")
-        
-        # Get country-specific review sites
+
         country_specific_sites = get_country_specific_sites(country)
-        
-        # Build enhanced query with country-specific sites and price range
+
         enhanced_query = build_country_aware_search_query(query, country_specific_sites, price_range)
         logger.info(f"Enhanced query: {enhanced_query}")
-        
         max_retries = 2
         for attempt in range(max_retries):
             try:
@@ -168,48 +155,44 @@ You MUST return your response in the exact JSON format with a 'restaurants' fiel
                             print(f"🔨 Calling Tool: {event.tool_name}")
                             print(f"  With arguments: {event.tool_kwargs}")
                     result = await handler
-                    # Check if result has structured_response attribute
+
                     if hasattr(result, 'structured_response'):
                         return result.structured_response
-                    # Otherwise return the response wrapped in RestaurantOutput
+
                     if hasattr(result, 'response') and hasattr(result.response, 'structured_output'):
                         return result.response.structured_output
-                    # If all else fails, return an empty response
+
                     logger.warning(f"Unexpected result structure: {type(result)}")
                     return RestaurantOutput(restaurants=[])
                 else:
                     response = await self.agent.run(enhanced_query)
-                    # Check if response has structured_response attribute
+
                     if hasattr(response, 'structured_response'):
                         return response.structured_response
-                    # Otherwise check for structured_output
+
                     if hasattr(response, 'response') and hasattr(response.response, 'structured_output'):
                         return response.response.structured_output
-                    # If all else fails, return an empty response
+
                     logger.warning(f"Unexpected response structure: {type(response)}")
                     return RestaurantOutput(restaurants=[])
             except Exception as e:
                 logger.error(f"Error in scrape_restaurants (attempt {attempt + 1}/{max_retries}): {e}")
-                
-                # If this is a JSON parsing error and we have retries left, reinitialize and retry
+
                 if "Expecting property name enclosed in double quotes" in str(e) and attempt < max_retries - 1:
                     logger.info("JSON parsing error detected, resetting Tavily MCP client and reinitializing agent...")
-                    # Reset the shared Tavily MCP client to force reinitialization
+
                     mcp_manager.reset_tavily()
                     self._initialized = False
                     await self.initialize()
                     continue
-                
-                # If all retries failed or it's not a JSON error, return a valid empty response
+
                 if attempt == max_retries - 1:
                     logger.error(f"All retries failed for scrape_restaurants")
                     return RestaurantOutput(restaurants=[])
-    
     async def run_custom_query(self, query: str) -> RestaurantOutput:
         """Run a custom query using the MCP agent."""
         if not self._initialized:
             await self.initialize()
-        
         try:
             response = await self.agent.run(query)
             return response.structured_response
@@ -217,7 +200,7 @@ You MUST return your response in the exact JSON format with a 'restaurants' fiel
             logger.error(f"Error in running custom query: {e}")
             return RestaurantOutput(restaurants=[])
 
-# Global restaurant agent instance to avoid multiple initializations
+
 _global_restaurant_agent = None
 
 async def get_global_restaurant_agent() -> RestaurantAgent:
@@ -231,15 +214,58 @@ async def get_global_restaurant_agent() -> RestaurantAgent:
 async def call_restaurant_agent(ctx: Context, query: str) -> str:
     """Useful for recording research notes based on a specific prompt."""
     agent = await get_global_restaurant_agent()
-    
     result = await agent.scrape_restaurants(query=query)
 
     async with ctx.store.edit_state() as ctx_state:
         ctx_state["state"]["restaurants"] = result
+
+        if "job_id" in ctx_state:
+            from utils.job_manager import get_job_manager
+            job_manager = get_job_manager()
+
+            flights_data = ctx_state.get("state", {}).get("flights", {})
+            hotels_data = ctx_state.get("state", {}).get("hotels", {})
+            flights_count = len(flights_data.get("flights", []))
+            hotels_count = len(hotels_data.get("hotels", []))
+
+            restaurants_count = 0
+            if isinstance(result, str):
+                try:
+                    import json
+                    result_dict = json.loads(result)
+                    if "restaurants" in result_dict:
+                        restaurants_count = len(result_dict["restaurants"])
+                except:
+                    pass
+            elif isinstance(result, dict) and "restaurants" in result:
+                restaurants_count = len(result["restaurants"])
+            progress = {
+                "message": f"Found {restaurants_count} restaurant recommendations",
+                "step": "restaurants",
+                "details": {
+                    "flights_found": flights_count,
+                    "hotels_found": hotels_count,
+                    "restaurants_found": restaurants_count,
+                    "activities_planned": 0,
+                    "price_ranges": {}
+                }
+            }
+
+            if flights_data.get("best_price"):
+                progress["details"]["price_ranges"]["flights"] = {
+                    "min": flights_data.get("best_price"),
+                    "max": max([f.get("price", 0) for f in flights_data.get("flights", [])], default=0)
+                }
+            if hotels_data.get("best_price"):
+                progress["details"]["price_ranges"]["hotels"] = {
+                    "min": hotels_data.get("best_price"),
+                    "max": max([h.get("price", 0) for h in hotels_data.get("hotels", [])], default=0)
+                }
+            job_manager.update_job_progress(ctx_state["job_id"], progress)
     return result
 
 
-# Convenience function for backward compatibility
+
 async def search_restaurants(query: str = "What are the top rated restaurants in Tokyo") -> RestaurantOutput:
     """Legacy function for backward compatibility."""
     try:
