@@ -1,114 +1,72 @@
-# TravelAI Backend - Refactored Architecture
+# Waypoint Backend API
 
-A clean, organized FastAPI backend for the TravelAI MVP with proper separation of concerns and maintainable code structure.
+🚀 **Comprehensive Travel API Platform** powered by Amadeus, AI agents, and custom integrations.
 
 ## Overview
 
-This is the refactored backend architecture that maintains all existing functionality while providing a cleaner, more maintainable codebase. The original comprehensive travel API functionality is preserved in the `legacy_agents/` folder for backward compatibility.
+A production-ready FastAPI backend service providing 30+ travel APIs including flight search, hotel booking, activity discovery, market analytics, and AI-powered travel intelligence. Built with modern async Python and integrated with Amadeus Self-Service APIs.
 
-## Architecture Overview
+## 🌟 Key Features
 
-```
-backend/
-├── app.py                 # Main FastAPI application entry point
-├── main.py               # Legacy API entry point (for backward compatibility)
-├── requirements.txt      # Python dependencies
-├── core/                 # Core configuration and utilities
-│   ├── config.py        # Application settings and environment management
-│   └── exceptions.py    # Custom exception classes
-├── models/              # Pydantic models for requests and responses
-│   ├── requests.py      # API request models
-│   └── responses.py     # API response models
-├── services/            # Business logic and external integrations
-│   ├── travel_integration.py  # Waypoint-be and external API integration
-│   ├── smart_planner.py        # Smart itinerary planning service
-│   └── user_service.py         # User management and Convex integration
-├── agents/              # AI agents for intelligent features
-│   ├── ai_agent.py      # Core AI agent with LLM capabilities
-│   └── workflow_agent.py # Complex workflow orchestration
-└── legacy_agents/       # Original comprehensive travel API agents
-    └── ...              # Preserved for backward compatibility
-```
+### ✈️ **Flight Services** 
+- **Smart Search & Booking**: Multi-airport resolution, deduplication, price optimization
+- **Flexible Date Search**: Find cheapest travel dates across a month
+- **Flight Operations**: Real-time status tracking, airline check-in links
+- **Price Analytics**: Historical pricing data and trends
+- **Delay Predictions**: ML-powered delay probability analysis
+- **Inspiration Search**: "Where can I go for $500?"
 
-## Key Features
+### 🏨 **Hotels**
+- **Search & Booking**: Find accommodations by city or coordinates
+- **Sentiment Analysis**: Guest review sentiment scoring
+- **Price Comparison**: Multi-property price analysis
 
-### ✅ Clean Architecture
-- **Separation of Concerns**: Clear boundaries between models, services, and agents
-- **Single Responsibility**: Each module has a focused purpose
-- **Dependency Injection**: Clean service dependencies
-- **Error Handling**: Comprehensive exception handling
+### 🎯 **Activities & Tours**
+- **Experience Discovery**: Find tours and activities by location
+- **Real-time Availability**: Live booking status
+- **Price Filtering**: Budget-based activity search
 
-### ✅ Modern FastAPI Features
-- **Type Safety**: Full type annotations throughout
-- **Automatic Documentation**: OpenAPI/Swagger docs
-- **Request Validation**: Pydantic model validation
-- **Async Support**: Fully async architecture
+### 🚗 **Ground Transportation**
+- **Airport Transfers**: Private, shared, and taxi options
+- **Route Planning**: Point-to-point transfer search
+- **Price Comparison**: Multiple provider options
 
-### ✅ External Integrations
-- **Convex Database**: Real-time data synchronization
-- **Waypoint-be Services**: Comprehensive travel APIs
-- **AI Agents**: LLM-powered intelligent features
-- **Fallback Systems**: Graceful degradation when services are unavailable
+### 📊 **Market Intelligence**
+- **Travel Analytics**: Most traveled/booked destinations
+- **Busiest Periods**: Peak travel time analysis
+- **Airport Routes**: All destinations from any airport
+- **Trip Intelligence**: Business vs leisure trip prediction
 
-### ✅ Smart Features
-- **Intelligent Itinerary Planning**: AI-powered trip suggestions
-- **Real-time Travel Data**: Flight, hotel, and activity search
-- **User Gamification**: Achievements and progress tracking
-- **Context-aware Recommendations**: Personalized travel suggestions
+### 🤖 **AI Capabilities**
+- **Dynamic Data Resolution**: AI-powered airport/airline lookups via OpenRouter
+- **No Static Files**: All data resolved in real-time using GPT-4o-mini
+- **Intelligent Agents**: Workflow orchestration for complex queries
+- **Restaurant Discovery**: Tavily-powered restaurant search
 
-## Development Setup
+## 📋 API Categories
 
-### 1. Install Dependencies
-```bash
-cd backend
-pip install -r requirements.txt
-```
+The API is organized into 15 logical categories in Swagger UI:
 
-### 2. Environment Configuration
-Create a `.env` file in the project root with:
-```bash
-# AI and External APIs
-GEMINI_API_KEY=your_gemini_api_key
-OPENROUTER_API_KEY=your_openrouter_key  # Optional
-BRIGHT_DATA_API_TOKEN=your_bright_data_token  # Optional
-
-# Authentication
-CLERK_SECRET_KEY=sk_test_...
-
-# Database
-CONVEX_URL=https://your-deployment.convex.cloud
-CONVEX_DEPLOYMENT=production
-
-# Travel Services (Optional)
-AMADEUS_CLIENT_ID=your_amadeus_id
-AMADEUS_CLIENT_SECRET=your_amadeus_secret
-```
-
-### 3. Run Development Server
-
-#### Main TravelAI MVP Backend
-```bash
-# Primary application (recommended)
-python app.py
-# or
-fastapi dev app.py
-
-# API available at: http://localhost:8001
-```
-
-#### Legacy Comprehensive Travel API
-```bash
-# For backward compatibility
-python main.py
-
-# API available at: http://localhost:8000
-```
+1. **Flights - Search & Booking** (5 endpoints)
+2. **Flights - Operations** (2 endpoints)
+3. **Flights - Analytics** (1 endpoint)
+4. **Flights - Predictions** (1 endpoint)
+5. **Flights - Inspiration & Planning** (1 endpoint)
+6. **Hotels** (3 endpoints)
+7. **Activities & Tours** (2 endpoints)
+8. **Transfers & Ground Transport** (1 endpoint)
+9. **Airports** (1 endpoint)
+10. **Market Analytics** (3 endpoints)
+11. **Trip Intelligence** (1 endpoint)
+12. **Restaurants** (1 endpoint)
+13. **AI Agents** (3 endpoints)
+14. **System** (2 endpoints)
 
 ## 🛠️ Tech Stack
 
 - **Framework**: FastAPI 0.115.6 with async/await
 - **AI/LLM Integration**: 
-  - OpenRouter (GPT-5-mini) for dynamic lookups
+  - OpenRouter (GPT-4o-mini) for dynamic lookups
   - LlamaIndex for agent orchestration
   - Google Gemini for fallback
 - **Travel Data**: Amadeus Self-Service APIs (v12.0.0)
@@ -251,7 +209,7 @@ waypoint-be/
 │   ├── restaurant_agent.py     # Restaurant discovery
 │   ├── hotel_agent.py         # Hotel search agent
 │   ├── flight_agent.py        # Legacy flight agent
-│   └── agent_workflow.py      # Agent orchestration
+│   └── itinerary_writer.py    # Itinerary writing orchestration
 └── service/
     └── exceptions.py           # Custom exception hierarchy
 ```
@@ -273,7 +231,7 @@ waypoint-be/
 │  └─────────────┘ └──────────────┘          │
 ├─────────────────────────────────────────────┤
 │           AI Lookup Service                  │
-│      (OpenRouter GPT-5-mini)               │
+│      (OpenRouter GPT-4o-mini)               │
 ├─────────────────────────────────────────────┤
 │          External APIs                       │
 │  ┌──────────┐ ┌──────────┐ ┌──────────┐   │

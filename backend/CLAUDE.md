@@ -38,7 +38,7 @@ This is a Python FastAPI backend with AI agent capabilities for travel planning:
   - `flight_search.py` - Alternative flight search using Playwright and Gemini API
   - `restaurant_agent.py` - Restaurant search using Tavily MCP
   - `hotel_agent.py` - Hotel search using BrightData MCP
-  - `agent_workflow.py` - Orchestration service for multiple agents
+  - `itinerary_writer.py` - Itinerary writing orchestration service
 - `service/exceptions.py` - Custom exception hierarchy for error handling
 
 **Key Patterns:**
