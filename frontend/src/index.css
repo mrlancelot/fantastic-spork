@@ -1,0 +1,198 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Typography Base Styles */
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    color: theme('colors.neutral.800');
+    background-color: theme('colors.neutral.0');
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    color: theme('colors.neutral.900');
+  }
+  
+  /* Focus styles */
+  *:focus {
+    outline: 2px solid theme('colors.primary.500');
+    outline-offset: 2px;
+  }
+  
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+@layer components {
+  /* Shadow utilities */
+  .shadow-xs {
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  }
+  
+  .shadow-floating {
+    box-shadow: 0 10px 40px -10px rgb(0 0 0 / 0.15);
+  }
+  
+  /* Button Components */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 text-base font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-primary {
+    @apply inline-flex items-center justify-center px-4 py-2 text-base font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed bg-primary-600 hover:bg-primary-700 active:bg-primary-800 text-white focus:ring-primary-500 shadow-sm;
+  }
+  
+  .btn-sm {
+    @apply px-3 py-1.5 text-sm;
+  }
+  
+  .btn-lg {
+    @apply px-6 py-3 text-lg;
+  }
+  
+  /* Form Components */
+  .input-field {
+    @apply w-full px-4 py-3 text-base bg-white border border-neutral-300 rounded-lg placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all duration-200;
+  }
+  
+  .form-label {
+    @apply block text-sm font-medium text-neutral-700 mb-2;
+  }
+  
+  /* Card Components */
+  .card {
+    @apply bg-white rounded-xl border border-neutral-200 transition-all duration-200;
+  }
+  
+  .shadow-card {
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  }
+  
+  /* Chat Components */
+  .chat-header {
+    @apply p-6 border-b border-neutral-200 bg-neutral-50;
+  }
+  
+  .chat-body {
+    @apply flex-1 overflow-y-auto p-4 space-y-4;
+  }
+  
+  .chat-message-user {
+    @apply max-w-sm rounded-lg px-4 py-3 bg-primary-600 text-white ml-auto;
+  }
+  
+  .chat-message-assistant {
+    @apply max-w-sm rounded-lg px-4 py-3 bg-neutral-150 text-neutral-800;
+  }
+  
+  /* Progress Components */
+  .progress-bar {
+    @apply w-full bg-neutral-200 rounded-full h-2;
+  }
+  
+  .progress-fill {
+    @apply bg-primary-600 h-2 rounded-full transition-all duration-300;
+  }
+  
+  .progress-card {
+    @apply bg-white rounded-lg shadow-card border border-neutral-200 transition-all duration-200 p-6 space-y-4;
+  }
+  
+  .progress-item-completed {
+    @apply flex items-center gap-3 p-3 rounded-lg bg-success-50 border border-success-200;
+  }
+  
+  .progress-item-in-progress {
+    @apply flex items-center gap-3 p-3 rounded-lg bg-warning-50 border border-warning-200;
+  }
+  
+  .progress-item-pending {
+    @apply flex items-center gap-3 p-3 rounded-lg bg-neutral-50 border border-neutral-200;
+  }
+  
+  /* Status Icons */
+  .status-icon-completed {
+    @apply flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 bg-success-500 text-white;
+  }
+  
+  .status-icon-in-progress {
+    @apply flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 bg-warning-500 text-white;
+  }
+  
+  .status-icon-pending {
+    @apply flex items-center justify-center w-6 h-6 rounded-full flex-shrink-0 bg-neutral-300 text-neutral-600;
+  }
+  
+  /* Typography Classes */
+  .text-display {
+    @apply text-4xl font-semibold tracking-tight;
+  }
+  
+  .text-page-title {
+    @apply text-3xl font-semibold;
+  }
+  
+  .text-section-title {
+    @apply text-2xl font-semibold;
+  }
+  
+  .text-card-title {
+    @apply text-xl font-semibold;
+  }
+  
+  .text-body {
+    @apply text-base leading-relaxed;
+  }
+  
+  /* Drag and Drop Styles */
+  .sortable-item {
+    @apply transition-all duration-200;
+  }
+  
+  .sortable-item.is-dragging {
+    @apply transform rotate-2 scale-105 shadow-xl;
+    z-index: 999;
+  }
+  
+  .sortable-item.is-over {
+    @apply transform scale-105 shadow-md;
+  }
+  
+  .drag-handle {
+    @apply transition-all duration-200;
+    cursor: grab;
+  }
+  
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+  
+  .drag-handle:hover {
+    @apply text-gray-600;
+  }
+  
+  /* Animation utilities */
+  .chat-message-enter {
+    animation: slideUp 0.3s ease-out;
+  }
+  
+  .quick-action-button {
+    @apply transition-all duration-200 hover:shadow-sm hover:border-blue-300;
+  }
+}
+
+@keyframes slideUp {
+  0% { 
+    transform: translateY(10px); 
+    opacity: 0; 
+  }
+  100% { 
+    transform: translateY(0); 
+    opacity: 1; 
+  }
+}
