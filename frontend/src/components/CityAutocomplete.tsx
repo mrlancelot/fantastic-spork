@@ -134,17 +134,6 @@ export const CityAutocomplete: React.FC<CityAutocompleteProps> = ({
     setSearchTerm(value);
   }, [value]);
 
-  // Group cities by country for display
-  const groupedCities = useMemo(() => {
-    const groups: { [country: string]: City[] } = {};
-    filteredCities.forEach(city => {
-      if (!groups[city.country]) {
-        groups[city.country] = [];
-      }
-      groups[city.country].push(city);
-    });
-    return groups;
-  }, [filteredCities]);
 
   return (
     <div ref={containerRef} className="relative">
