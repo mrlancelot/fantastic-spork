@@ -2,7 +2,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { LandingPage } from './pages/LandingPage';
 import { LoadingPage } from './pages/LoadingPage';
 import { ItineraryPage } from './pages/ItineraryPage';
-import RetroTravelPlanner from './components/RetroTravelPlanner';
 
 function App() {
   return (
@@ -12,7 +11,6 @@ function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/loading" element={<LoadingPage />} />
           <Route path="/itinerary" element={<ItineraryPage />} />
-          <Route path="/retro-travel-planner" element={<RetroTravelPlanner />} />
         </Routes>
       </div>
     </Router>
