@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, ArrowUpDown, ArrowRight, ArrowLeftRight } from 'lucide-react';
+import { MapPin, ArrowRight, ArrowLeftRight } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
