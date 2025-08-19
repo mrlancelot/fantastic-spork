@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MessageSquare, Send, Plane, Home, Utensils, MapPin } from 'lucide-react';
+import { MessageSquare, Send } from 'lucide-react';
 import { RetroWindow, Button, Input, theme } from '../components/retro';
 import { ItineraryCard } from '../components/retro/ItineraryCard';
 
