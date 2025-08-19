@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin, ArrowRight, ArrowLeftRight } from 'lucide-react';
+import { CityAutocomplete } from '../components/CityAutocomplete';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -90,13 +91,12 @@ export const LandingPage: React.FC = () => {
             {/* First row - From, Swap, To, Departure */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-4">
               <div className="md:col-span-3">
-                <label className="block text-xs font-medium text-neutral-500 uppercase mb-2">FROM</label>
-                <input
-                  type="text"
+                <CityAutocomplete
+                  label="FROM"
+                  id="from-city"
                   placeholder="Where from?"
                   value={formData.from}
-                  onChange={(e) => setFormData(prev => ({ ...prev, from: e.target.value }))}
-                  className="w-full px-3 py-2.5 text-base bg-white border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  onChange={(value) => setFormData(prev => ({ ...prev, from: value }))}
                   required
                 />
               </div>
@@ -111,13 +111,12 @@ export const LandingPage: React.FC = () => {
                 </button>
               </div>
               <div className="md:col-span-3">
-                <label className="block text-xs font-medium text-neutral-500 uppercase mb-2">TO</label>
-                <input
-                  type="text"
+                <CityAutocomplete
+                  label="TO"
+                  id="to-city"
                   placeholder="Where to?"
                   value={formData.to}
-                  onChange={(e) => setFormData(prev => ({ ...prev, to: e.target.value }))}
-                  className="w-full px-3 py-2.5 text-base bg-white border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                  onChange={(value) => setFormData(prev => ({ ...prev, to: value }))}
                   required
                 />
               </div>
