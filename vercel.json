@@ -5,7 +5,7 @@
 	"functions": {
 		"api/index.py": {
 			"maxDuration": 10,
-			"excludeFiles": "{!(*.py),@(bin|frontend)/**,backend/{*,!(main.py|schemas.py|constants.py|controllers/**|service/**|utils/**)}}"
+			"excludeFiles": "{**,!backend/**/*.py,backend/venv/**,backend/__pycache__/**,backend/**/*.pyc,backend/README.md,backend/CLAUDE.md}"
 		}
 	},
 	"rewrites": [
