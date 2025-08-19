@@ -1,10 +1,11 @@
 {
 	"installCommand": "cd frontend && npm ci",
-	"buildCommand": "cd frontend && npm run build && cd .. && cp backend/requirements.txt .",
+	"buildCommand": "cd frontend && npm run build && cd .. && cp backend/requirements-vercel.txt requirements.txt",
 	"outputDirectory": "frontend/dist",
 	"functions": {
 		"api/index.py": {
-			"excludeFiles": "{!(*.py),@(bin|frontend)/**,backend/{*,!(src)/**}}"
+			"maxDuration": 10,
+			"excludeFiles": "{!(*.py),@(bin|frontend)/**,backend/{*,!(main.py|schemas.py|constants.py|controllers/**|service/**|utils/**)}}"
 		}
 	},
 	"rewrites": [
@@ -12,6 +13,6 @@
 		{ "source": "/(.*)", "destination": "/index.html" }
 	],
 	"env": {
-		"PYTHONPATH": "backend/src"
+		"PYTHONPATH": "backend"
 	}
 }

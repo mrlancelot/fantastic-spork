@@ -1,0 +1,27 @@
+# Minimal requirements for Vercel deployment
+# Use this instead of requirements.txt for production
+
+# FastAPI and Server
+fastapi==0.116.1
+uvicorn[standard]==0.35.0
+
+# Data Validation
+pydantic==2.11.7
+
+# HTTP and Async (required by FastAPI for multipart form handling)
+python-multipart==0.0.20
+
+# Environment Variables
+python-dotenv==1.0.1
+
+# For API calls only (lightweight alternatives)
+httpx==0.28.1
+
+# Minimal AI functionality - use direct API calls instead of heavy llama-index
+google-generativeai==0.8.4
+openai
+
+# Web scraping - consider removing if not essential
+beautifulsoup4==4.12.3
+# NOTE: Playwright removed - too heavy for Vercel
+# Use API-based alternatives or external services
