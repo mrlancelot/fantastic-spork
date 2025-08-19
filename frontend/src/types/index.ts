@@ -1,12 +1,3 @@
-export interface SearchFormData {
-  destination: string;
-  startDate: Date | null;
-  endDate: Date | null;
-  travelers: number;
-  budget: string;
-  interests: string[];
-}
-
 export interface ItineraryDay {
   date: Date;
   activities: Activity[];

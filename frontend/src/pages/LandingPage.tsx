@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plane, ChevronLeft, ChevronRight } from 'lucide-react';
 import { RetroWindow, Button, Input, Select, Tag, theme } from '../components/retro';
+import { CityAutocomplete } from '../components/CityAutocomplete';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -61,10 +62,10 @@ export const LandingPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2 flex gap-2 items-end">
                 <div className="flex-1">
-                  <Input
+                  <CityAutocomplete
                     label="From"
                     value={formData.from}
-                    onChange={(e) => setFormData(prev => ({ ...prev, from: e.target.value }))}
+                    onChange={(value) => setFormData(prev => ({ ...prev, from: value }))}
                     placeholder="New York"
                     required
                   />
@@ -74,10 +75,10 @@ export const LandingPage: React.FC = () => {
                   <ChevronRight className="w-4 h-4 inline" />
                 </Button>
                 <div className="flex-1">
-                  <Input
+                  <CityAutocomplete
                     label="To"
                     value={formData.to}
-                    onChange={(e) => setFormData(prev => ({ ...prev, to: e.target.value }))}
+                    onChange={(value) => setFormData(prev => ({ ...prev, to: value }))}
                     placeholder="Tokyo"
                     required
                   />

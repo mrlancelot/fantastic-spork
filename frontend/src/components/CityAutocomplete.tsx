@@ -1,6 +1,5 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import Fuse from 'fuse.js';
-import { majorCities, City } from '../data/cities';
+import React, { useState, useRef, useEffect } from 'react';
+import { searchCities, isValidCity, City } from '../data/allCities';
 
 interface CityAutocompleteProps {
   value: string;
@@ -20,62 +19,79 @@ export const CityAutocomplete: React.FC<CityAutocompleteProps> = ({
   id
 }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState(value);
+  const [searchTerm, setSearchTerm] = useState(value || '');
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const [isLoading, setIsLoading] = useState(false);
-  const [loadedCities, setLoadedCities] = useState(false);
+  const [filteredCities, setFilteredCities] = useState<City[]>([]);
+  const [isValidSelection, setIsValidSelection] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   
-  const inputRef = useRef<HTMLInputElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout>();
 
-  // Initialize Fuse.js with lazy loading
-  const fuse = useMemo(() => {
-    if (!loadedCities) return null;
-    
-    return new Fuse(majorCities, {
-      keys: ['name', 'country'],
-      threshold: 0.4, // Balanced fuzzy matching
-      includeScore: true,
-      shouldSort: true,
-      minMatchCharLength: 1,
-    });
-  }, [loadedCities]);
-
-  // Load cities when user starts typing (lazy loading)
+  // Check if current value is a valid selection
   useEffect(() => {
-    if (searchTerm.length >= 4 && !loadedCities && !isLoading) {
-      setIsLoading(true);
-      // Simulate async loading (in reality, cities are already imported)
-      setTimeout(() => {
-        setLoadedCities(true);
-        setIsLoading(false);
-      }, 100);
+    if (searchTerm) {
+      setIsValidSelection(isValidCity(searchTerm));
+    } else {
+      setIsValidSelection(false);
     }
-  }, [searchTerm, loadedCities, isLoading]);
+  }, [searchTerm]);
 
-  // Get filtered results
-  const getFilteredCities = useCallback((): City[] => {
-    if (!fuse || searchTerm.length < 4) return [];
-    
-    const results = fuse.search(searchTerm);
-    // Return top 5 results
-    return results.slice(0, 5).map(result => result.item);
-  }, [fuse, searchTerm]);
+  // Filter cities based on search term with debouncing
+  useEffect(() => {
+    // Clear any existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
 
-  const filteredCities = useMemo(() => getFilteredCities(), [getFilteredCities]);
+    // If it's a valid selection, don't search
+    if (isValidSelection) {
+      setFilteredCities([]);
+      setIsOpen(false);
+      setIsSearching(false);
+      return;
+    }
+
+    if (searchTerm.length < 2) {
+      setFilteredCities([]);
+      setIsOpen(false);
+      setIsSearching(false);
+      return;
+    }
+
+    // Start searching indicator
+    setIsSearching(true);
+
+    // Debounce the search
+    searchTimeoutRef.current = setTimeout(() => {
+      try {
+        const results = searchCities(searchTerm, 10);
+        setFilteredCities(results);
+        setIsOpen(results.length > 0);
+      } catch (error) {
+        console.error('Search error:', error);
+        setFilteredCities([]);
+        setIsOpen(false);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 200); // 200ms debounce
+
+    // Cleanup timeout on unmount or when search term changes
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm, isValidSelection]);
 
   // Handle input change
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     setSearchTerm(newValue);
+    onChange(newValue);
     setSelectedIndex(-1);
-    
-    if (newValue.length >= 4) {
-      setIsOpen(true);
-    } else {
-      setIsOpen(false);
-    }
   };
 
   // Handle city selection
@@ -95,12 +111,14 @@ export const CityAutocomplete: React.FC<CityAutocompleteProps> = ({
       case 'ArrowDown':
         e.preventDefault();
         setSelectedIndex(prev => 
-          prev < filteredCities.length - 1 ? prev + 1 : prev
+          prev < filteredCities.length - 1 ? prev + 1 : 0
         );
         break;
       case 'ArrowUp':
         e.preventDefault();
-        setSelectedIndex(prev => prev > 0 ? prev - 1 : -1);
+        setSelectedIndex(prev => 
+          prev > 0 ? prev - 1 : filteredCities.length - 1
+        );
         break;
       case 'Enter':
         e.preventDefault();
@@ -109,7 +127,6 @@ export const CityAutocomplete: React.FC<CityAutocompleteProps> = ({
         }
         break;
       case 'Escape':
-        e.preventDefault();
         setIsOpen(false);
         setSelectedIndex(-1);
         break;
@@ -129,65 +146,83 @@ export const CityAutocomplete: React.FC<CityAutocompleteProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Sync internal state with external value prop
+  // Sync with external value
   useEffect(() => {
-    setSearchTerm(value);
+    setSearchTerm(value || '');
   }, [value]);
 
-
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={containerRef} className="relative w-full">
       {label && (
-        <label htmlFor={id} className="block text-xs font-medium text-neutral-500 uppercase mb-2">
-          {label}
+        <label htmlFor={id} className="block text-xs font-bold mb-1" style={{ color: '#2C3E50' }}>
+          {label.toUpperCase()}
         </label>
       )}
       <input
-        ref={inputRef}
         id={id}
         type="text"
         value={searchTerm}
         onChange={handleInputChange}
         onKeyDown={handleKeyDown}
         onFocus={() => {
-          if (searchTerm.length >= 4 && filteredCities.length > 0) {
+          // Only open if there are filtered results and not a valid selection
+          if (filteredCities.length > 0 && !isValidSelection) {
             setIsOpen(true);
           }
         }}
         placeholder={placeholder}
         required={required}
-        className="w-full px-3 py-2.5 text-base bg-white border border-neutral-300 rounded-lg placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+        className="w-full px-3 py-2.5 text-sm bg-[#F0F0F0] border-2 border-[#2C3E50] rounded-[6px] focus:outline-none focus:ring-2 focus:ring-[#4A90E2] focus:border-transparent transition-all duration-200 hover:bg-[#E8E8E8]"
         autoComplete="off"
       />
       
+      {/* Helper text - only show when typing and not enough characters */}
+      {searchTerm.length > 0 && searchTerm.length < 2 && !isValidSelection && (
+        <div className="absolute z-50 w-full mt-1 bg-yellow-50 border border-yellow-200 rounded-lg shadow-sm py-1 px-2">
+          <div className="text-xs text-yellow-700">Type at least 2 characters</div>
+        </div>
+      )}
+      
       {/* Loading indicator */}
-      {isLoading && searchTerm.length >= 4 && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-2 px-3">
-          <div className="text-sm text-neutral-500">Loading cities...</div>
+      {isSearching && (
+        <div className="absolute z-50 w-full mt-1 bg-blue-50 border border-blue-200 rounded-lg shadow-sm py-1 px-2">
+          <div className="text-xs text-blue-700">Searching cities...</div>
         </div>
       )}
       
       {/* Dropdown */}
-      {isOpen && !isLoading && filteredCities.length > 0 && (
+      {isOpen && filteredCities.length > 0 && (
         <div 
           ref={dropdownRef}
-          className="absolute z-10 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg max-h-60 overflow-auto"
+          className="absolute z-50 w-full mt-1 bg-[#F0F0F0] border-2 border-[#2C3E50] rounded-[6px] shadow-xl max-h-60 overflow-auto"
+          style={{ top: '100%', left: 0 }}
         >
           <ul className="py-1">
             {filteredCities.map((city, index) => (
-              <li key={`${city.name}-${city.country}`}>
+              <li key={`${city.name}-${city.country}-${index}`}>
                 <button
                   type="button"
                   onClick={() => selectCity(city)}
                   onMouseEnter={() => setSelectedIndex(index)}
                   className={`w-full text-left px-3 py-2 text-sm transition-colors ${
                     index === selectedIndex
-                      ? 'bg-primary-50 text-primary-900'
-                      : 'text-neutral-700 hover:bg-neutral-50'
+                      ? 'bg-[#4A90E2] text-white'
+                      : 'text-[#2C3E50] hover:bg-[#E0E0E0]'
                   }`}
                 >
-                  <span className="font-medium">{city.name}</span>
-                  <span className="text-neutral-500">, {city.country}</span>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="font-medium">{city.name}</span>
+                      {city.state && (
+                        <span className={index === selectedIndex ? 'text-white opacity-90' : 'text-gray-600'}>
+                          , {city.state}
+                        </span>
+                      )}
+                      <span className={index === selectedIndex ? 'text-white opacity-90' : 'text-gray-600'}>
+                        , {city.country}
+                      </span>
+                    </div>
+                  </div>
                 </button>
               </li>
             ))}
@@ -195,10 +230,10 @@ export const CityAutocomplete: React.FC<CityAutocompleteProps> = ({
         </div>
       )}
       
-      {/* No results message */}
-      {isOpen && !isLoading && searchTerm.length >= 4 && filteredCities.length === 0 && (
-        <div className="absolute z-10 w-full mt-1 bg-white border border-neutral-200 rounded-lg shadow-lg py-2 px-3">
-          <div className="text-sm text-neutral-500">No cities found</div>
+      {/* No results - only show when actively searching, not for valid selections */}
+      {searchTerm.length >= 2 && filteredCities.length === 0 && !isValidSelection && !isSearching && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-2 px-3">
+          <div className="text-sm text-gray-500">No cities found for "{searchTerm}"</div>
         </div>
       )}
     </div>
