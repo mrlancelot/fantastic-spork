@@ -27,7 +27,7 @@ export const CityAutocomplete: React.FC<CityAutocompleteProps> = ({
   
   const containerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
   // Check if current value is a valid selection
   useEffect(() => {
