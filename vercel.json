@@ -1,6 +1,6 @@
 {
 	"installCommand": "cd frontend && npm ci",
-	"buildCommand": "cd frontend && npm run build && cd .. && cp backend/requirements-vercel.txt requirements.txt",
+	"buildCommand": "cd frontend && npm run build && cd .. && cp backend/requirements.txt .",
 	"outputDirectory": "frontend/dist",
 	"functions": {
 		"api/index.py": {
