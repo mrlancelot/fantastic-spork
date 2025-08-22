@@ -54,10 +54,12 @@ class TravelRepository:
     """Repository for all travel-related database operations"""
     
     def __init__(self):
+        logger.info("Initializing TravelRepository")
         self.convex = get_convex_manager()
         self._operation_timeout = 30  # seconds
         # Temporary mapping between our string IDs and Convex IDs
         self._job_id_mapping = {}  # {string_id: convex_id}
+        logger.debug(f"Repository initialized with timeout={self._operation_timeout}s")
     
     # ==================== FLIGHT OPERATIONS ====================
     async def create_flights_batch(self, flights: List[Dict[str, Any]], 
@@ -72,11 +74,16 @@ class TravelRepository:
         Returns:
             List of created flight IDs
         """
+        logger.info(f"=== SAVING FLIGHTS BATCH: {len(flights)} flights ===")
+        logger.debug(f"Itinerary ID: {itinerary_id}")
+        
         if not flights:
+            logger.warning("No flights to save")
             return []
         
         # Sort by price and take top 3 cheapest
         sorted_flights = sorted(flights, key=lambda x: x.get('price', float('inf')))[:3]
+        logger.info(f"Selected top {len(sorted_flights)} cheapest flights")
         flight_ids = []
         
         for idx, flight_data in enumerate(sorted_flights):
@@ -104,15 +111,16 @@ class TravelRepository:
                 # Convert to Convex schema and save
                 try:
                     convex_data = to_convex_flight(flight.dict())
+                    logger.debug(f"Calling Convex mutation 'createFlight' for flight {idx + 1}")
                     result = await asyncio.wait_for(
                         self.convex.mutation("createFlight", convex_data),
                         timeout=self._operation_timeout
                     )
                     if result:
                         flight_ids.append(flight.id)
-                        logger.info(f"Saved flight {idx + 1}: {flight.airline} - ${flight.price}")
+                        logger.info(f"✓ Saved flight {idx + 1}: {flight.airline} - ${flight.price} (Convex ID: {result})")
                     else:
-                        logger.warning(f"Flight {idx + 1} save returned None")
+                        logger.warning(f"⚠️ Flight {idx + 1} save returned None")
                 except asyncio.TimeoutError:
                     logger.error(f"Timeout saving flight {idx + 1}")
                 except Exception as e:
@@ -122,7 +130,7 @@ class TravelRepository:
                 logger.error(f"Failed to save flight {idx}: {e}")
                 # Continue with next flight
         
-        logger.info(f"Saved {len(flight_ids)}/{len(sorted_flights)} flights")
+        logger.info(f"✓ FLIGHTS BATCH COMPLETE: Saved {len(flight_ids)}/{len(sorted_flights)} flights")
         return flight_ids
     
     # ==================== HOTEL OPERATIONS ====================
@@ -138,18 +146,24 @@ class TravelRepository:
         Returns:
             List of created hotel IDs
         """
+        logger.info(f"=== SAVING HOTELS BATCH: {len(hotels)} hotels ===")
+        logger.debug(f"Itinerary ID: {itinerary_id}")
+        
         if not hotels:
+            logger.warning("No hotels to save")
             return []
         
         # Get 2 cheapest by price
         sorted_by_price = sorted(hotels, key=lambda x: float(x.get('price', float('inf'))))[:2]
         selected_hotels = sorted_by_price.copy()
+        logger.debug(f"Selected {len(sorted_by_price)} cheapest hotels")
         
         # Get 3 best by rating (excluding already selected)
         selected_ids = {id(h) for h in selected_hotels}
         remaining = [h for h in hotels if id(h) not in selected_ids]
         sorted_by_rating = sorted(remaining, key=lambda x: float(x.get('rating', 0)), reverse=True)[:3]
         selected_hotels.extend(sorted_by_rating)
+        logger.info(f"Selected total {len(selected_hotels)} hotels (2 cheapest + {len(sorted_by_rating)} best rated)")
         
         hotel_ids = []
         
@@ -175,15 +189,16 @@ class TravelRepository:
                 # Convert to Convex schema and save
                 try:
                     convex_data = to_convex_hotel(hotel.dict())
+                    logger.debug(f"Calling Convex mutation 'createHotel' for {hotel.name}")
                     result = await asyncio.wait_for(
                         self.convex.mutation("createHotel", convex_data),
                         timeout=self._operation_timeout
                     )
                     if result:
                         hotel_ids.append(hotel.id)
-                        logger.info(f"Saved hotel: {hotel.name} - ${hotel.price}")
+                        logger.info(f"✓ Saved hotel: {hotel.name} - ${hotel.price} (Convex ID: {result})")
                     else:
-                        logger.warning(f"Hotel save returned None for {hotel.name}")
+                        logger.warning(f"⚠️ Hotel save returned None for {hotel.name}")
                 except asyncio.TimeoutError:
                     logger.error(f"Timeout saving hotel {hotel.name}")
                 except Exception as e:
@@ -196,7 +211,7 @@ class TravelRepository:
                 logger.error(f"Traceback: {traceback.format_exc()}")
                 # Continue with next hotel
         
-        logger.info(f"Saved {len(hotel_ids)}/{len(selected_hotels)} hotels")
+        logger.info(f"✓ HOTELS BATCH COMPLETE: Saved {len(hotel_ids)}/{len(selected_hotels)} hotels")
         return hotel_ids
     
     # ==================== RESTAURANT OPERATIONS ====================
@@ -212,11 +227,16 @@ class TravelRepository:
         Returns:
             List of created restaurant IDs
         """
+        logger.info(f"=== SAVING RESTAURANTS BATCH: {len(restaurants)} restaurants ===")
+        logger.debug(f"Itinerary ID: {itinerary_id}")
+        
         if not restaurants:
+            logger.warning("No restaurants to save")
             return []
         
         # Limit to 30 restaurants
         restaurants_to_save = restaurants[:30]
+        logger.info(f"Will save up to {len(restaurants_to_save)} restaurants")
         restaurant_ids = []
         
         for idx, restaurant_data in enumerate(restaurants_to_save, 1):
@@ -257,7 +277,7 @@ class TravelRepository:
                     logger.error(f"Error saving restaurant {restaurant.name}: {e}")
                 
                 if idx <= 5 or idx % 5 == 0:  # Log first 5 and every 5th
-                    logger.info(f"Saved restaurant {idx}/{len(restaurants_to_save)}: {restaurant.name}")
+                    logger.info(f"✓ Saved restaurant {idx}/{len(restaurants_to_save)}: {restaurant.name}")
                 
             except Exception as e:
                 logger.error(f"Failed to save restaurant {idx}: {e}")
@@ -266,7 +286,7 @@ class TravelRepository:
                 logger.error(f"Traceback: {traceback.format_exc()}")
                 # Continue with next restaurant
         
-        logger.info(f"Saved {len(restaurant_ids)}/{len(restaurants_to_save)} restaurants")
+        logger.info(f"✓ RESTAURANTS BATCH COMPLETE: Saved {len(restaurant_ids)}/{len(restaurants_to_save)} restaurants")
         return restaurant_ids
     
     # ==================== ITINERARY OPERATIONS ====================
@@ -289,13 +309,15 @@ class TravelRepository:
             itinerary = Itinerary(**data)
             convex_data = to_convex_itinerary(itinerary.dict())
             
+            logger.debug(f"Calling Convex mutation 'createItinerary' for {itinerary.destination}")
+            logger.debug(f"Convex data: {convex_data}")
             convex_id = await asyncio.wait_for(
                 self.convex.mutation("createItinerary", convex_data),
                 timeout=self._operation_timeout
             )
             if not convex_id:
                 raise RuntimeError("Failed to create itinerary - no result returned")
-            logger.info(f"Created itinerary: {itinerary.id} (Convex: {convex_id}) for {itinerary.destination}")
+            logger.info(f"✓ Created itinerary: {itinerary.id} (Convex: {convex_id}) for {itinerary.destination}")
             # Return the Convex ID so it can be used for child records
             return convex_id
         except asyncio.TimeoutError:
@@ -317,6 +339,7 @@ class TravelRepository:
         Returns:
             Created day ID
         """
+        logger.debug(f"Creating itinerary day {day_number} for itinerary {itinerary_id}")
         day = ItineraryDay(
             itinerary_id=itinerary_id,  # This is now a Convex ID
             day_number=day_number,
@@ -326,8 +349,9 @@ class TravelRepository:
         convex_data = to_convex_itinerary_day(day.dict())
         convex_data["itineraryId"] = itinerary_id  # Use Convex ID directly
         
+        logger.debug(f"Calling Convex mutation 'createItineraryDay'")
         convex_id = await self.convex.mutation("createItineraryDay", convex_data)
-        logger.debug(f"Created day {day_number}: {date} (Convex: {convex_id})")
+        logger.info(f"✓ Created day {day_number}: {date} (Convex: {convex_id})")
         # Return the Convex ID for activities to reference
         return convex_id
     
@@ -345,10 +369,13 @@ class TravelRepository:
         Raises:
             ValueError: If required fields are missing
         """
+        logger.debug(f"Creating activity for day {day_id}: {activity_data.get('title', 'Unknown')}")
+        
         # Validate required fields
         required_fields = ['title', 'time', 'duration', 'location', 'activity_type', 'additional_info']
         for field in required_fields:
             if field not in activity_data or not activity_data[field]:
+                logger.warning(f"Missing required activity field: {field}")
                 raise ValueError(f"Missing required activity field: {field}")
         
         activity = Activity(itinerary_day_id=day_id, **activity_data)
@@ -358,7 +385,9 @@ class TravelRepository:
         convex_data["itineraryId"] = itinerary_id  # Convex ID from createItinerary
         convex_data["itineraryDayId"] = day_id  # Convex ID from createItineraryDay
         
+        logger.debug(f"Calling Convex mutation 'createActivity'")
         convex_id = await self.convex.mutation("createActivity", convex_data)
+        logger.info(f"✓ Created activity: {activity.title} at {activity.time} (Convex: {convex_id})")
         return convex_id
     
     # ==================== JOB OPERATIONS ====================
@@ -376,17 +405,20 @@ class TravelRepository:
         Raises:
             ValueError: If required fields are missing
         """
+        logger.info(f"=== CREATING JOB: type={data.get('type')}, status={data.get('status')} ===")
         try:
             # Ensure input is JSON serializable
             if 'input' in data and not isinstance(data['input'], str):
                 data['input'] = json.dumps(data['input'])
+                logger.debug("Converted job input to JSON string")
             
             job = Job(**data)
             job_dict = job.dict()
-            logger.debug(f"Job dict before mapper: {job_dict}")
+            logger.debug(f"Job model created with ID: {job.id}")
             convex_data = to_convex_job(job_dict)
-            logger.debug(f"Job dict after mapper: {convex_data}")
+            logger.debug(f"Convex data prepared for job creation")
             
+            logger.debug(f"Calling Convex mutation 'createJob'")
             convex_id = await asyncio.wait_for(
                 self.convex.mutation("createJob", convex_data),
                 timeout=self._operation_timeout
@@ -396,7 +428,8 @@ class TravelRepository:
             
             # Store mapping between our string ID and Convex ID
             self._job_id_mapping[job.id] = convex_id
-            logger.info(f"Created job: {job.id} (Convex: {convex_id}) of type {job.type}")
+            logger.info(f"✓ Created job: {job.id} (Convex: {convex_id}) of type {job.type}")
+            logger.debug(f"Job ID mapping stored: {job.id} -> {convex_id}")
             return job.id
         except asyncio.TimeoutError:
             logger.error(f"Timeout creating job of type {data.get('type')}")
@@ -426,11 +459,13 @@ class TravelRepository:
         Returns:
             True if update successful
         """
+        logger.info(f"=== UPDATING JOB: {job_id} to status={status}, progress={progress} ===")
         try:
             # Get Convex ID from our mapping
             convex_id = self._job_id_mapping.get(job_id)
             if not convex_id:
-                logger.warning(f"No Convex ID found for job {job_id}, cannot update")
+                logger.warning(f"⚠️ No Convex ID found for job {job_id} in mapping")
+                logger.debug(f"Current job mappings: {list(self._job_id_mapping.keys())}")
                 return False
             
             update_data = {
@@ -448,15 +483,17 @@ class TravelRepository:
                 # Truncate error to reasonable length
                 update_data["error"] = error[:1000] if len(error) > 1000 else error
             
+            logger.debug(f"Calling Convex mutation 'updateJob' with data: {update_data}")
             mutation_result = await asyncio.wait_for(
                 self.convex.mutation("updateJob", update_data),
                 timeout=self._operation_timeout
             )
-            logger.debug(f"Updated job {job_id}: status={status}, progress={progress}")
+            logger.info(f"✓ Updated job {job_id}: status={status}, progress={progress}")
             return mutation_result is not None
         except asyncio.TimeoutError:
-            logger.error(f"Timeout updating job {job_id}")
+            logger.error(f"❌ Timeout updating job {job_id}")
             return False
         except Exception as e:
-            logger.error(f"Failed to update job {job_id}: {e}")
+            logger.error(f"❌ Failed to update job {job_id}: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False

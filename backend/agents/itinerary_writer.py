@@ -19,6 +19,7 @@ from database.travel_repository import TravelRepository
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class ItineraryWriterError(Exception):
     """Custom exception for itinerary writer errors."""
@@ -111,25 +112,30 @@ class ItineraryWriter:
         Args:
             api_token: Optional API token for MCP agents
         """
+        logger.info("=== INITIALIZING ITINERARY WRITER ===")
         self.api_token = api_token
         self._workflow = None
         self._initialized = False
         self.repository = TravelRepository()
         
-        logger.info("ItineraryWriter initialized")
+        logger.info("✓ ItineraryWriter initialized")
     
     async def initialize(self) -> None:
         """Initialize the workflow and agents."""
         if self._initialized:
+            logger.debug("Already initialized, skipping")
             return
             
         try:
-            logger.info("Initializing itinerary writer service...")
+            logger.info("=== INITIALIZING WORKFLOW AND AGENTS ===")
             
             # Use the centralized LLM manager to get a budget LLM
+            logger.debug("Getting budget LLM from manager")
             llm = get_budget_llm()
+            logger.info("✓ Got budget LLM instance")
             
             # Create the workflow
+            logger.debug("Creating FunctionAgent workflow")
             self._workflow = FunctionAgent(
                 name="orchestrator_agent",
                 llm=llm,
@@ -176,7 +182,7 @@ class ItineraryWriter:
             )
             
             self._initialized = True
-            logger.info("Itinerary writer service initialized successfully")
+            logger.info("✓ Itinerary writer service initialized successfully")
             
         except Exception as e:
             logger.error(f"Failed to initialize itinerary writer service: {e}")
@@ -213,40 +219,57 @@ class ItineraryWriter:
         Raises:
             ItineraryWriterError: If workflow execution fails
         """
+        logger.info("=== RUNNING ITINERARY WORKFLOW ===")
+        logger.debug(f"Query length: {len(query)} characters")
+        logger.debug(f"Query preview: {query[:200]}...")
+        
         try:
             workflow = await self.get_workflow()
-            logger.info(f"Running itinerary workflow with query: {query}")
+            logger.info("✓ Got workflow instance, starting execution")
             
             # Run the workflow and await the handler to get the result
+            logger.debug("Creating workflow handler")
             handler = workflow.run(ctx=ctx, user_msg=query, **kwargs)
+            
+            logger.info("Streaming workflow events...")
+            tool_calls_made = []
             async for event in handler.stream_events():
                 if isinstance(event, AgentStream):
                     if event.delta:
                         print(event.delta, end="", flush=True)
                 elif isinstance(event, AgentOutput):
                     if event.tool_calls:
-                        print(
-                            "🛠️  Planning to use tools:",
-                            [call.tool_name for call in event.tool_calls],
-                        )
+                        tools = [call.tool_name for call in event.tool_calls]
+                        logger.info(f"🛠️ Planning to use tools: {tools}")
+                        print(f"🛠️ Planning to use tools: {tools}")
                 elif isinstance(event, ToolCallResult):
+                    logger.info(f"🔧 Tool Result ({event.tool_name}): Success")
+                    logger.debug(f"  Arguments: {event.tool_kwargs}")
+                    logger.debug(f"  Output preview: {str(event.tool_output)[:200]}...")
                     print(f"🔧 Tool Result ({event.tool_name}):")
                     print(f"  Arguments: {event.tool_kwargs}")
                     print(f"  Output: {event.tool_output}")
                 elif isinstance(event, ToolCall):
+                    tool_calls_made.append(event.tool_name)
+                    logger.info(f"🔨 Calling Tool: {event.tool_name}")
+                    logger.debug(f"  With arguments: {event.tool_kwargs}")
                     print(f"🔨 Calling Tool: {event.tool_name}")
                     print(f"  With arguments: {event.tool_kwargs}")
+            
+            logger.info(f"Workflow event streaming complete. Tools called: {tool_calls_made}")
             result = await handler
             
-            logger.info("Itinerary workflow executed successfully")
-            logger.info(f"Itinerary workflow result: {result}")
+            logger.info("✓ Itinerary workflow executed successfully")
+            logger.debug(f"Result type: {type(result)}")
+            logger.debug(f"Result preview: {str(result)[:500]}..." if result else "Result is None")
             
             # The result is the final output from the workflow
             # For AgentWorkflow, this typically contains the agent's response
             return result
             
         except Exception as e:
-            logger.error(f"Itinerary workflow execution failed: {e}")
+            logger.error(f"❌ Itinerary workflow execution failed: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise ItineraryWriterError(f"Workflow execution failed: {e}")
 
     
@@ -263,6 +286,10 @@ class ItineraryWriter:
         Returns:
             Created itinerary ID
         """
+        logger.info("=== SAVING ITINERARY TO DATABASE ===")
+        logger.debug(f"Itinerary has {len(itinerary_output.days)} days")
+        logger.debug(f"Request data: {request_data}")
+        
         try:
             # Create parent itinerary record
             itinerary_data = {
@@ -272,21 +299,26 @@ class ItineraryWriter:
                 "end_date": request_data.get("end_date", request_data.get("return_date", "")),
                 "status": "published"
             }
+            logger.debug(f"Creating itinerary with data: {itinerary_data}")
             
             itinerary_id = await self.repository.create_itinerary(itinerary_data)
-            logger.info(f"Created itinerary: {itinerary_id}")
+            logger.info(f"✓ Created parent itinerary: {itinerary_id}")
             
             # Create normalized days and activities
+            logger.info(f"Creating {len(itinerary_output.days)} days with activities")
             for day in itinerary_output.days:
+                logger.debug(f"Processing day {day.day_number}: {day.date}")
+                
                 # Create day record
                 day_id = await self.repository.create_itinerary_day(
                     itinerary_id=itinerary_id,
                     day_number=day.day_number,
                     date=day.date
                 )
-                logger.debug(f"Created day {day.day_number}: {day_id}")
+                logger.info(f"✓ Created day {day.day_number}: {day.date} (ID: {day_id})")
                 
                 # Create activities for this day
+                logger.debug(f"Creating {len(day.activities)} activities for day {day.day_number}")
                 for idx, activity in enumerate(day.activities):
                     activity_data = {
                         "title": activity.title,
@@ -316,8 +348,10 @@ class ItineraryWriter:
             return itinerary_id
             
         except Exception as e:
-            logger.error(f"Failed to save itinerary to database: {e}")
+            logger.error(f"❌ Failed to save itinerary to database: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             if job_id:
+                logger.debug(f"Updating job {job_id} to failed status")
                 error_msg = json.dumps({
                     "message": str(e),
                     "traceback": traceback.format_exc()[:800]
