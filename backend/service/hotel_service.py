@@ -6,94 +6,81 @@ Orchestrates hotel searches using scrapers
 from typing import Dict, List, Optional
 import sys
 from pathlib import Path
+import logging
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from scraper.booking_scraper import BookingComScraper
-import logging
+from service.api_utils import APIUtils
 
 
 class HotelService:
-    """Service layer for hotel searches"""
     
     def __init__(self):
         self.logger = logging.getLogger('HotelService')
-        self.scraper = BookingComScraper(headless=True)
-        self.initialized = False
+        self.api_utils = APIUtils()
         
     async def initialize(self):
-        """Initialize the scraper"""
-        if not self.initialized:
-            await self.scraper.initialize()
-            self.initialized = True
-            self.logger.info("Hotel service initialized")
+        pass
             
     async def close(self):
-        """Close the scraper"""
-        if self.initialized:
-            await self.scraper.close()
-            self.initialized = False
+        pass
             
     async def search(self, request: Dict) -> Dict:
-        """
-        Search hotels with enrichment and ranking
-        
-        Args:
-            request: {
-                'destination': str,
-                'check_in': str,
-                'check_out': str,
-                'adults': int,
-                'rooms': int,
-                'children': int
-            }
-        """
         self.logger.info(f"Processing hotel search: {request['destination']}")
-        
-        # Ensure scraper is initialized
-        await self.initialize()
+        print(f"DEBUG: Starting hotel search for {request['destination']}")
         
         try:
-            # Import SearchParams
-            from scraper.booking_scraper import SearchParams
-            
-            # Create search params
-            params = SearchParams(
+            print("DEBUG: Generating hotel URLs...")
+            url_results = await self.api_utils.generate_hotel_urls(
                 destination=request['destination'],
                 check_in=request['check_in'],
                 check_out=request['check_out'],
                 adults=request.get('adults', 2),
-                children=request.get('children', 0),
                 rooms=request.get('rooms', 1)
             )
             
-            # Search using scraper
-            hotel_results = await self.scraper.search_hotels(params)
+            print(f"DEBUG: Generated {len(url_results) if url_results else 0} URLs")
+            if url_results:
+                for idx, result in enumerate(url_results):
+                    print(f"DEBUG: URL {idx+1}: {result.get('platform', 'unknown')} - {result.get('url', 'N/A')[:100]}...")
             
-            # Convert HotelResult objects to dicts
-            hotels = []
-            for hotel in hotel_results:
-                hotels.append({
-                    'name': hotel.name,
-                    'price': self._extract_price_value(hotel.price) if hotel.price else 0,
-                    'price_formatted': hotel.price,
-                    'rating': hotel.rating,
-                    'reviews_count': hotel.reviews_count,
-                    'location': hotel.location,
-                    'amenities': hotel.amenities,
-                    'source': hotel.source
-                })
+            if not url_results:
+                print("DEBUG: No URLs were generated!")
+                return {
+                    'status': 'error',
+                    'error': 'No URLs generated',
+                    'hotels': [],
+                    'total': 0
+                }
             
-            # Build response
+            urls = [result['url'] for result in url_results]
+            print(f"DEBUG: Scraping {len(urls)} URLs...")
+            html_contents = await self.api_utils.scrape_urls_parallel(urls)
+            print(f"DEBUG: Scraped {len(html_contents)} pages")
+            
+            print("DEBUG: Extracting hotel data from scraped content...")
+            hotels = await self.api_utils.extract_hotel_data(html_contents, urls)
+            print(f"DEBUG: Extracted {len(hotels)} hotels")
+            
+            for hotel in hotels:
+                if 'price' not in hotel or hotel['price'] == 0:
+                    hotel['price'] = self._extract_price_value(hotel.get('price_formatted', ''))
+                    # If still no price, try to extract from any available field
+                    if hotel['price'] == 0 and 'price' in str(hotel).lower():
+                        import re
+                        price_matches = re.findall(r'\$?(\d+)', str(hotel))
+                        if price_matches:
+                            hotel['price'] = float(price_matches[0])
+            
             response = {
                 'status': 'success',
                 'hotels': hotels,
                 'total': len(hotels),
-                'best_price': min([h['price'] for h in hotels], default=None) if hotels else None,
+                'best_price': min([h['price'] for h in hotels if h.get('price')], default=None) if hotels else None,
                 'analysis': self._analyze_hotels(hotels),
                 'recommendations': self._get_recommendations(hotels, request),
-                'filters': self._get_available_filters(hotels)
+                'filters': self._get_available_filters(hotels),
+                'search_urls': url_results
             }
             
             self.logger.info(f"Found {len(hotels)} hotels")
@@ -101,6 +88,9 @@ class HotelService:
             return response
             
         except Exception as e:
+            print(f"DEBUG: Exception occurred: {type(e).__name__}: {str(e)}")
+            import traceback
+            print(f"DEBUG: Traceback:\n{traceback.format_exc()}")
             self.logger.error(f"Hotel search error: {e}", exc_info=True)
             return {
                 'status': 'error',
@@ -161,12 +151,22 @@ class HotelService:
             
         recommendations = {}
         
-        # Cheapest option
-        cheapest = min(hotels, key=lambda h: h.get('price', float('inf')))
-        recommendations['cheapest'] = {
-            'hotel': cheapest,
-            'reason': f"Lowest price at {cheapest.get('price_formatted', 'N/A')}"
-        }
+        # Cheapest option (only consider hotels with valid prices)
+        hotels_with_price = [h for h in hotels if h.get('price') and h.get('price') > 0]
+        if hotels_with_price:
+            cheapest = min(hotels_with_price, key=lambda h: h.get('price', float('inf')))
+            recommendations['cheapest'] = {
+                'hotel': cheapest,
+                'reason': f"Lowest price at {cheapest.get('price_formatted', 'N/A')}"
+            }
+        else:
+            # Fallback if no valid prices
+            if hotels:
+                cheapest = hotels[0]
+                recommendations['cheapest'] = {
+                    'hotel': cheapest,
+                    'reason': "Price information not available"
+                }
         
         # Best rated (if ratings available)
         rated_hotels = [h for h in hotels if h.get('rating')]
@@ -182,9 +182,16 @@ class HotelService:
             score = 100
             
             # Price factor
-            min_price = cheapest.get('price', 1)
-            price_ratio = hotel.get('price', min_price) / min_price
-            score -= (price_ratio - 1) * 20
+            if hotels_with_price:
+                min_price = min([h.get('price', 1) for h in hotels_with_price])
+                if min_price == 0:
+                    min_price = 1  # Avoid division by zero
+                if hotel.get('price') and hotel.get('price') > 0:
+                    price_ratio = hotel.get('price') / min_price
+                    score -= (price_ratio - 1) * 20
+            else:
+                # No price info available, skip price factor
+                pass
             
             # Rating factor
             if hotel.get('rating'):

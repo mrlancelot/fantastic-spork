@@ -38,9 +38,10 @@ A production-ready FastAPI backend service providing 30+ travel APIs including f
 - **Trip Intelligence**: Business vs leisure trip prediction
 
 ### 🤖 **AI Capabilities**
-- **Dynamic Data Resolution**: AI-powered airport/airline lookups via OpenRouter
-- **No Static Files**: All data resolved in real-time using GPT-4o-mini
-- **Intelligent Agents**: Workflow orchestration for complex queries
+- **Dynamic URL Generation**: AI-powered search URL generation for Kayak, Booking.com, and Airbnb
+- **Intelligent Scraping**: Lightweight HTTP scraping with AI-structured data extraction
+- **No Heavy Dependencies**: Replaced Playwright with httpx for Vercel deployment compatibility
+- **Multi-Model Support**: Uses Google Gemini Flash Lite and Z.AI GLM-4 32B models
 - **Restaurant Discovery**: Tavily-powered restaurant search
 
 ## 📋 API Categories
@@ -66,9 +67,10 @@ The API is organized into 15 logical categories in Swagger UI:
 
 - **Framework**: FastAPI 0.115.6 with async/await
 - **AI/LLM Integration**: 
-  - OpenRouter (GPT-4o-mini) for dynamic lookups
+  - OpenRouter API for URL generation and data extraction
+  - Google Gemini 2.5 Flash Lite for hotel searches
+  - Z.AI GLM-4 32B for flight searches and data processing
   - LlamaIndex for agent orchestration
-  - Google Gemini for fallback
 - **Travel Data**: Amadeus Self-Service APIs (v12.0.0)
 - **Data Validation**: Pydantic v2 models
 - **HTTP Client**: aiohttp for async requests
@@ -93,12 +95,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. Install Playwright browsers (for flight_search.py)
-```bash
-playwright install chromium
-```
-
-### 5. Configure environment variables
+### 4. Configure environment variables
 ```bash
 cp .env.example .env
 ```
@@ -112,10 +109,12 @@ AMADEUS_Secret=your_amadeus_secret
 # OpenRouter (Required for AI lookups)
 OPENROUTER_API_KEY=your_openrouter_key
 
+# OpenRouter (Required for flight and hotel search)
+OPENROUTER_API_KEY=your_openrouter_key
+
 # Optional Services
 GOOGLE_API_KEY=your_google_api_key
 GEMINI_API_KEY=your_gemini_api_key
-BRIGHT_DATA_API_TOKEN=your_bright_data_token
 TAVILY_API_KEY=your_tavily_api_key
 ```
 
@@ -205,12 +204,15 @@ waypoint-be/
 │   ├── flights.py              # Amadeus flight search implementation
 │   ├── travel_services.py      # Hotels, Activities, Transfers, Status
 │   ├── market_insights.py      # Analytics and predictions
-│   ├── flight_search.py        # Alternative Playwright-based search
+│   ├── flight_search.py        # Alternative search implementation
 │   ├── restaurant_agent.py     # Restaurant discovery
 │   ├── hotel_agent.py         # Hotel search agent
 │   ├── flight_agent.py        # Legacy flight agent
 │   └── itinerary_writer.py    # Itinerary writing orchestration
 └── service/
+    ├── api_utils.py            # OpenRouter URL generation and scraping
+    ├── flight_service.py       # Flight search service
+    ├── hotel_service.py        # Hotel search service
     └── exceptions.py           # Custom exception hierarchy
 ```
 

@@ -5,7 +5,9 @@ uvicorn[standard]==0.35.0
 # Data Validation
 pydantic==2.11.7
 
-# HTTP and Async (required by FastAPI for multipart form handling)
+# HTTP and Async
+httpx>=0.28.1
+aiohttp==3.12.15
 python-multipart==0.0.20
 
 # Core LLM packages first
@@ -14,6 +16,7 @@ llama-index-core==0.13.0
 # LLM providers
 llama-index-llms-google-genai==0.3.0
 llama-index-llms-openai==0.5.2
+llama-index-llms-openai-like==0.5.0
 
 # Tools
 llama-index-tools-mcp==0.3.0
@@ -22,16 +25,24 @@ llama-index-tools-tavily-research==0.4.0
 # Main llama-index package (installs after core and tools)
 llama-index==0.13.0
 
+# Google Services
+google-generativeai==0.8.4
+
+# Amadeus API for Flight Search
+amadeus==12.0.0
+
 # Environment Variables
 python-dotenv==1.0.1
 
 # Web Scraping (Required for flights and hotels)
-playwright==1.49.0
 beautifulsoup4==4.12.3
 
 # Cerebras SDK
 cerebras-cloud-sdk
 
-# Video Analysis
+# Development Tools
+ruff==0.8.4
 yt-dlp
+faster-whisper
 openai
+ctransformers

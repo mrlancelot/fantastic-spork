@@ -25,13 +25,6 @@ import asyncio
 logger = logging.getLogger(__name__)
 
 class CerebrasLLM(CustomLLM):
-    """
-    Custom LlamaIndex LLM wrapper for Cerebras Cloud SDK.
-    
-    This wrapper makes the Cerebras SDK compatible with LlamaIndex's LLM interface,
-    allowing it to be used with LlamaIndex agents and workflows.
-    """
-    
     model_name: str = "llama-4-scout-17b-16e-instruct"
     temperature: float = 0.1
     max_tokens: Optional[int] = 4096
@@ -46,16 +39,7 @@ class CerebrasLLM(CustomLLM):
         callback_manager: Optional[CallbackManager] = None,
         **kwargs: Any,
     ) -> None:
-        """Initialize the Cerebras LLM wrapper.
-        
-        Args:
-            model_name: The Cerebras model to use
-            temperature: Sampling temperature
-            max_tokens: Maximum tokens to generate
-            api_key: Cerebras API key (if not provided, uses CEREBRAS_API_KEY env var)
-            callback_manager: LlamaIndex callback manager
-            **kwargs: Additional arguments
-        """
+    
         self.model_name = model_name
         self.temperature = temperature
         self.max_tokens = max_tokens

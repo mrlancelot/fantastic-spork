@@ -9,88 +9,82 @@ from pathlib import Path
 import json
 import logging
 
-# Add parent directory to path
 sys.path.append(str(Path(__file__).parent.parent))
 
-from scraper.google_flights_scraper import GoogleFlightsRoundTripScraper
+from service.api_utils import APIUtils
 
 logger = logging.getLogger(__name__)
 
 class FlightService:
-    """Service layer for flight searches"""
     
     def __init__(self):
-        self.scraper = GoogleFlightsRoundTripScraper(headless=True)
+        self.api_utils = APIUtils()
         
     async def close(self):
-        """Close the scraper"""
-        pass  # Original scraper handles browser lifecycle per search
+        pass
             
     async def search(self, request: Dict) -> Dict:
-        """
-        Search flights with enrichment and ranking
-        
-        Args:
-            request: {
-                'origin': str,
-                'destination': str,
-                'departure_date': str,
-                'return_date': Optional[str],
-                'adults': int,
-                'class': str
-            }
-        """
         logger.info(f"Processing flight search: {request['origin']} → {request['destination']}")
         
         try:
-            # Use the scraper's search method - limited to 3 options for faster results
-            results = await self.scraper.search_round_trip_options(
+            url_results = await self.api_utils.generate_flight_urls(
                 origin=request['origin'],
                 destination=request['destination'],
                 departure_date=request['departure_date'],
-                return_date=request.get('return_date', request['departure_date']),
-                num_options=3
+                return_date=request.get('return_date'),
+                adults=request.get('adults', 1),
+                travel_class=request.get('class', 'economy')
             )
             
-            # Check for errors
-            if 'error' in results:
+            if not url_results:
                 return {
                     'status': 'error',
-                    'error': results['error'],
+                    'error': 'No URLs generated',
                     'flights': [],
                     'total': 0
                 }
-                
-            # Get flights from flight_options
-            flight_options = results.get('flight_options', [])
             
-            # Convert to simpler format for compatibility
-            flights = []
-            for option in flight_options:
-                basic_info = option.get('basic_info', {})
-                outbound = option.get('outbound', {})
-                flights.append({
-                    'airline': basic_info.get('airline') or outbound.get('airline'),
-                    'price': basic_info.get('price_value', 0),
-                    'price_formatted': basic_info.get('price'),
-                    'departure_time': outbound.get('departure_time'),
-                    'arrival_time': outbound.get('arrival_time'),
-                    'duration': outbound.get('duration'),
-                    'stops': basic_info.get('stops_value', 0),
-                    'origin': outbound.get('origin'),
-                    'destination': outbound.get('destination')
-                })
+            flights = await self.api_utils.generate_flight_metadata(
+                origin=request['origin'],
+                destination=request['destination'],
+                departure_date=request['departure_date'],
+                return_date=request.get('return_date'),
+                adults=request.get('adults', 1),
+                travel_class=request.get('class', 'economy')
+            )
             
-            # Build response in expected format
+            flight_options = []
+            for flight in flights:
+                if flight.get('flight_type') == 'outbound':
+                    option = {
+                        'basic_info': {
+                            'airline': flight.get('airline'),
+                            'price': flight.get('price_formatted'),
+                            'price_value': flight.get('price', 0),
+                            'stops_value': flight.get('stops', 0)
+                        },
+                        'outbound': {
+                            'airline': flight.get('airline'),
+                            'departure_time': flight.get('departure_time'),
+                            'arrival_time': flight.get('arrival_time'),
+                            'duration': flight.get('duration'),
+                            'origin': flight.get('origin'),
+                            'destination': flight.get('destination'),
+                            'layover': flight.get('layover')
+                        }
+                    }
+                    flight_options.append(option)
+            
             response = {
                 'status': 'success',
                 'flights': flights,
-                'flight_options': flight_options,  # Keep original detailed data
+                'flight_options': flight_options,
                 'total': len(flights),
-                'best_price': min([f['price'] for f in flights], default=None) if flights else None,
+                'best_price': min([f['price'] for f in flights if f.get('price')], default=None) if flights else None,
                 'analysis': self._analyze_flights(flights),
                 'recommendations': self._get_recommendations(flights, request),
-                'summary': results.get('summary', {})
+                'search_urls': url_results,
+                'note': 'Prices are estimates. Click search URLs for live pricing on Kayak.'
             }
             
             logger.info(f"Found {len(flights)} flights")
