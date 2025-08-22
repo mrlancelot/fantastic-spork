@@ -9,7 +9,7 @@ import os
 from agents.restaurant_agent import call_restaurant_agent
 from service.flight_service import call_flight_service
 from service.hotel_service import call_hotel_service
-from utils.llm_manager import get_powerful_llm
+from utils.llm_manager import get_budget_llm
 
 
 # Set up logging
@@ -121,8 +121,8 @@ class ItineraryWriter:
         try:
             logger.info("Initializing itinerary writer service...")
             
-            # Use the centralized LLM manager to get a powerful LLM
-            llm = get_powerful_llm()
+            # Use the centralized LLM manager to get a budget LLM
+            llm = get_budget_llm()
             
             # Create the workflow
             self._workflow = FunctionAgent(
@@ -141,13 +141,26 @@ class ItineraryWriter:
     "4. Use call_restaurant_agent to find top restaurants at the destination that match the user's budget preferences and interests\n"
     "5. Compile all this information into a structured ItineraryWriterOutput format\n"
     
-    "CRITICAL INSTRUCTIONS:\n"
-    "- You MUST use the available tools to gather current, accurate information\n"
-    "- Extract and focus on the specific destination, dates, and preferences mentioned in the user's request\n"
-    "- Prioritize recommendations that align with the user's stated interests and budget constraints\n"
+    "CRITICAL OUTPUT INSTRUCTIONS:\n"
+    "- You MUST return a properly structured ItineraryWriterOutput with ALL required fields:\n"
+    "  * title: A descriptive title for the itinerary (e.g., 'San Jose to Tokyo Travel Itinerary')\n"
+    "  * personalization: A note about how the itinerary is personalized (e.g., 'Personalized for technology and food interests')\n"
+    "  * total_days: The total number of days in the trip\n"
+    "  * days: A list of DayItinerary objects, each containing:\n"
+    "    - day_number: Sequential day number (1, 2, 3, etc.)\n"
+    "    - date: Date in format 'Day Name, Month Day' (e.g., 'Friday, October 10')\n"
+    "    - year: The year as an integer (e.g., 2025)\n"
+    "    - activities: List of ItineraryActivity objects with time, title, description, location, duration, activity_type, and additional_info\n"
+    "\n"
+    "- Each day should include activities like:\n"
+    "  * Morning: Departure flight or hotel checkout\n"
+    "  * Afternoon: Arrival, hotel check-in, or sightseeing\n"
+    "  * Evening: Restaurant recommendations from your research\n"
+    "  * Activities should be based on the actual flight times, hotels, and restaurants you found\n"
+    "\n"
+    "- Use the data from your tool calls to populate the itinerary with real information\n"
     "- Ensure all recommendations fit within the specified budget and travel dates\n"
-    "- Once you have gathered all necessary information, format it into the required ItineraryWriterOutput structure\n"
-    "- Do NOT get stuck in reasoning loops - make tool calls, gather information, then produce the final structured output\n"
+    "- Do NOT return raw JSON data from tools - transform it into the ItineraryWriterOutput format\n"
     "- Always provide personalized recommendations based on the user's specific requirements and interests\n"),
                 output_cls=ItineraryWriterOutput,
                 initial_state={

@@ -11,8 +11,9 @@ from llama_index.llms.google_genai import GoogleGenAI
 from llama_index.llms.openai import OpenAI
 from dotenv import load_dotenv
 
-# Import custom Cerebras LLM wrapper
+# Import custom LLM wrappers
 from .cerebras_llm import CerebrasLLM
+from .openrouter_llm import OpenRouterLLM
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -31,6 +32,8 @@ class LLMProfile(Enum):
     POWERFUL = "powerful"   # Most capable for complex tasks
     BUDGET = "budget"       # Lowest cost option
     CEREBRAS_FAST = "cerebras_fast"  # Cerebras fast inference
+    GEMINI_2_FLASH = "gemini_2_flash"  # Google Gemini 2.0 Flash via OpenRouter
+    GEMINI_25_PRO = "gemini_25_pro"    # Google Gemini 2.5 Pro via OpenRouter
 
 class LLMManager:
     """Singleton manager for LLM instances with centralized configuration."""
@@ -69,7 +72,7 @@ class LLMManager:
         },
         LLMProfile.BUDGET: {
             "provider": LLMProvider.OPENROUTER,
-            "model": "openai/gpt-4o-mini",
+            "model": "google/gemini-2.0-flash-001",
             "temperature": 0.3,
             "max_tokens": 4096,
             "max_retries": 3,
@@ -84,6 +87,24 @@ class LLMManager:
             "max_retries": 3,
             "timeout": 30.0,
             "request_timeout": 30.0
+        },
+        LLMProfile.GEMINI_2_FLASH: {
+            "provider": LLMProvider.OPENROUTER,
+            "model": "google/gemini-2.0-flash-001",
+            "temperature": 0.1,
+            "max_tokens": 8192,
+            "max_retries": 3,
+            "timeout": 30.0,
+            "request_timeout": 30.0
+        },
+        LLMProfile.GEMINI_25_PRO: {
+            "provider": LLMProvider.OPENROUTER,
+            "model": "google/gemini-2.5-pro",
+            "temperature": 0.1,
+            "max_tokens": 8192,
+            "max_retries": 3,
+            "timeout": 60.0,
+            "request_timeout": 60.0
         }
     }
     
@@ -98,23 +119,7 @@ class LLMManager:
         provider: Optional[LLMProvider] = None,
         model: Optional[str] = None,
         **kwargs
-    ) -> Union[GoogleGenAI, OpenAI, CerebrasLLM]:
-        """
-        Get an LLM instance with the specified configuration.
-        
-        Args:
-            profile: Pre-configured profile to use
-            provider: Override the provider from profile
-            model: Override the model from profile
-            **kwargs: Additional parameters to override profile defaults
-            
-        Returns:
-            Configured LLM instance
-            
-        Raises:
-            ValueError: If required API keys are missing
-            Exception: If LLM initialization fails
-        """
+    ) -> Union[GoogleGenAI, OpenAI, OpenRouterLLM, CerebrasLLM]:
         # Create cache key
         cache_key = f"{profile.value}_{provider}_{model}_{hash(frozenset(kwargs.items()))}"
         
@@ -142,7 +147,7 @@ class LLMManager:
         
         return llm_instance
     
-    def _create_llm_instance(self, config: Dict[str, Any]) -> Union[GoogleGenAI, OpenAI, CerebrasLLM]:
+    def _create_llm_instance(self, config: Dict[str, Any]) -> Union[GoogleGenAI, OpenAI, OpenRouterLLM, CerebrasLLM]:
         """Create an LLM instance based on configuration."""
         provider = config["provider"]
         
@@ -199,21 +204,20 @@ class LLMManager:
             request_timeout=config.get("request_timeout", 30.0)
         )
     
-    def _create_openrouter(self, config: Dict[str, Any]) -> OpenAI:
-        """Create an OpenRouter LLM instance."""
+    def _create_openrouter(self, config: Dict[str, Any]) -> OpenRouterLLM:
+        """Create an OpenRouter LLM instance using custom wrapper."""
         api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
             raise ValueError("OPENROUTER_API_KEY environment variable is required for OpenRouter")
         
-        return OpenAI(
+        # Use custom OpenRouter wrapper that bypasses validation
+        return OpenRouterLLM(
             model=config["model"],
             api_key=api_key,
-            base_url="https://openrouter.ai/api/v1",
             temperature=config.get("temperature", 0.3),
             max_tokens=config.get("max_tokens", 4096),
             max_retries=config.get("max_retries", 3),
-            timeout=config.get("timeout", 30.0),
-            request_timeout=config.get("request_timeout", 30.0)
+            timeout=config.get("timeout", 30.0)
         )
     
     def _create_cerebras(self, config: Dict[str, Any]) -> CerebrasLLM:
@@ -258,22 +262,30 @@ class LLMManager:
 llm_manager = LLMManager()
 
 # Convenience functions for common use cases
-def get_fast_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, CerebrasLLM]:
+def get_fast_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, OpenRouterLLM, CerebrasLLM]:
     """Get a fast, cost-effective LLM for simple tasks."""
     return llm_manager.get_llm(LLMProfile.FAST, **kwargs)
 
-def get_balanced_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, CerebrasLLM]:
+def get_balanced_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, OpenRouterLLM, CerebrasLLM]:
     """Get a balanced LLM for general use."""
     return llm_manager.get_llm(LLMProfile.BALANCED, **kwargs)
 
-def get_powerful_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, CerebrasLLM]:
+def get_powerful_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, OpenRouterLLM, CerebrasLLM]:
     """Get the most capable LLM for complex tasks."""
     return llm_manager.get_llm(LLMProfile.POWERFUL, **kwargs)
 
-def get_budget_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, CerebrasLLM]:
+def get_budget_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, OpenRouterLLM, CerebrasLLM]:
     """Get the most cost-effective LLM available."""
     return llm_manager.get_llm(LLMProfile.BUDGET, **kwargs)
 
 def get_cerebras_fast_llm(**kwargs) -> CerebrasLLM:
     """Get a fast Cerebras LLM for quick inference."""
     return llm_manager.get_llm(LLMProfile.CEREBRAS_FAST, **kwargs)
+
+def get_gemini_2_flash_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, OpenRouterLLM, CerebrasLLM]:
+    """Get Google Gemini 2.0 Flash via OpenRouter for fast, high-quality responses."""
+    return llm_manager.get_llm(LLMProfile.GEMINI_2_FLASH, **kwargs)
+
+def get_gemini_25_pro_llm(**kwargs) -> Union[GoogleGenAI, OpenAI, OpenRouterLLM, CerebrasLLM]:
+    """Get Google Gemini 2.5 Pro via OpenRouter for advanced reasoning and complex tasks."""
+    return llm_manager.get_llm(LLMProfile.GEMINI_25_PRO, **kwargs)

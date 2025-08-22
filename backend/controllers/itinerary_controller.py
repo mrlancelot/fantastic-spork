@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, HTTPException
 from llama_index.core.workflow import Context
 from agents.itinerary_writer import get_itinerary_writer, ItineraryWriterOutput
@@ -56,25 +57,91 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryWriterOutput:
         ctx = Context(workflow)
         result = await itinerary_writer.run_workflow(full_query, ctx=ctx)
 
-        return ItineraryWriterOutput(
-            status="success",
-            title=result.structured_response.get("title", "Travel Itinerary"),
-            personalization=result.structured_response.get(
-                "personalization", "Personalized travel itinerary"
-            ),
-            total_days=result.structured_response.get("total_days", 0),
-            days=result.structured_response.get("days", []),
-            trip_details={
-                "trip_type": request.trip_type,
-                "route": f"{request.from_city} → {request.to_city}",
-                "departure_date": request.departure_date,
-                "return_date": request.return_date,
-                "passengers": request.adults,
-                "travel_class": request.travel_class,
-                "interests": request.interests,
-                "price_range": request.price_range,
-            },
-            message="Itinerary created successfully",
-        )
+        # Check if result has structured_response attribute (proper Pydantic model)
+        if hasattr(result, 'structured_response') and result.structured_response:
+            # Proper structured response from the agent
+            response_data = result.structured_response
+            if isinstance(response_data, dict):
+                # It's a dictionary, use it directly
+                return ItineraryWriterOutput(
+                    status="success",
+                    title=response_data.get("title", "Travel Itinerary"),
+                    personalization=response_data.get(
+                        "personalization", "Personalized travel itinerary"
+                    ),
+                    total_days=response_data.get("total_days", 0),
+                    days=response_data.get("days", []),
+                    trip_details={
+                        "trip_type": request.trip_type,
+                        "route": f"{request.from_city} → {request.to_city}",
+                        "departure_date": request.departure_date,
+                        "return_date": request.return_date,
+                        "passengers": request.adults,
+                        "travel_class": request.travel_class,
+                        "interests": request.interests,
+                        "price_range": request.price_range,
+                    },
+                    message="Itinerary created successfully",
+                )
+            else:
+                # It's a Pydantic model, use its attributes
+                return ItineraryWriterOutput(
+                    status="success",
+                    title=response_data.title,
+                    personalization=response_data.personalization,
+                    total_days=response_data.total_days,
+                    days=response_data.days,
+                    trip_details={
+                        "trip_type": request.trip_type,
+                        "route": f"{request.from_city} → {request.to_city}",
+                        "departure_date": request.departure_date,
+                        "return_date": request.return_date,
+                        "passengers": request.adults,
+                        "travel_class": request.travel_class,
+                        "interests": request.interests,
+                        "price_range": request.price_range,
+                    },
+                    message="Itinerary created successfully",
+                )
+        elif isinstance(result, str):
+            # Result is a JSON string, parse it
+            import json
+            try:
+                # Remove markdown code blocks if present
+                if "```json" in result:
+                    start = result.find("```json") + 7
+                    end = result.find("```", start)
+                    result = result[start:end].strip()
+                elif "```" in result:
+                    start = result.find("```") + 3
+                    end = result.find("```", start)
+                    result = result[start:end].strip()
+                
+                parsed_data = json.loads(result)
+                return ItineraryWriterOutput(
+                    status="success",
+                    title=parsed_data.get("title", "Travel Itinerary"),
+                    personalization=parsed_data.get(
+                        "personalization", "Personalized travel itinerary"
+                    ),
+                    total_days=parsed_data.get("total_days", 0),
+                    days=parsed_data.get("days", []),
+                    trip_details={
+                        "trip_type": request.trip_type,
+                        "route": f"{request.from_city} → {request.to_city}",
+                        "departure_date": request.departure_date,
+                        "return_date": request.return_date,
+                        "passengers": request.adults,
+                        "travel_class": request.travel_class,
+                        "interests": request.interests,
+                        "price_range": request.price_range,
+                    },
+                    message="Itinerary created successfully",
+                )
+            except json.JSONDecodeError as e:
+                raise HTTPException(status_code=500, detail=f"Failed to parse itinerary JSON: {str(e)}")
+        else:
+            # Unexpected result type
+            raise HTTPException(status_code=500, detail=f"Unexpected result type: {type(result)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Itinerary creation failed: {str(e)}")

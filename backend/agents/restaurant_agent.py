@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from llama_index.core.agent.workflow import AgentStream, AgentOutput, ToolCallResult, ToolCall
 import logging
-from utils.llm_manager import get_powerful_llm
+from utils.llm_manager import get_budget_llm
 
 # Import constants and helper functions
 from constants import (
@@ -65,7 +65,7 @@ class RestaurantAgent:
             
             # Create the agent with better error handling
             try:
-                llm = get_powerful_llm()
+                llm = get_budget_llm()
                 logger.info("LLM initialized successfully for restaurant agent")
             except Exception as llm_error:
                 logger.error(f"Failed to initialize LLM for restaurant agent: {llm_error}")
