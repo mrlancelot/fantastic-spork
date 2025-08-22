@@ -15,16 +15,6 @@ async def get_hotels(
     adults: int = 2,
     rooms: int = 1
 ) -> dict:
-    """
-    Search for hotels using GET parameters.
-    
-    Args:
-        destination: Destination city or location (e.g., 'Tokyo', 'Paris')
-        check_in: Check-in date in YYYY-MM-DD format
-        check_out: Check-out date in YYYY-MM-DD format
-        adults: Number of adult guests (default: 2)
-        rooms: Number of rooms needed (default: 1)
-    """
     try:
         result_json = await call_hotel_service(
             destination=destination,
