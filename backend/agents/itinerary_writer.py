@@ -1,6 +1,9 @@
 from llama_index.core.agent.workflow import FunctionAgent
 from typing import Dict, Any, Optional, List
 import logging
+import json
+import traceback
+from datetime import datetime
 from llama_index.core.agent.workflow import AgentStream, AgentOutput, ToolCallResult, ToolCall
 from llama_index.core.workflow import Context
 from pydantic import BaseModel, Field
@@ -10,6 +13,7 @@ from agents.restaurant_agent import call_restaurant_agent
 from service.flight_service import call_flight_service
 from service.hotel_service import call_hotel_service
 from utils.llm_manager import get_budget_llm
+from database.travel_repository import TravelRepository
 
 
 # Set up logging
@@ -110,6 +114,7 @@ class ItineraryWriter:
         self.api_token = api_token
         self._workflow = None
         self._initialized = False
+        self.repository = TravelRepository()
         
         logger.info("ItineraryWriter initialized")
     
@@ -244,6 +249,81 @@ class ItineraryWriter:
             logger.error(f"Itinerary workflow execution failed: {e}")
             raise ItineraryWriterError(f"Workflow execution failed: {e}")
 
+    
+    async def save_itinerary_to_db(self, itinerary_output: ItineraryWriterOutput, 
+                                   request_data: Dict[str, Any], 
+                                   job_id: Optional[str] = None) -> str:
+        """Save the itinerary to database in normalized format.
+        
+        Args:
+            itinerary_output: The structured itinerary output
+            request_data: Original request data (destination, dates, etc.)
+            job_id: Optional job ID to update
+            
+        Returns:
+            Created itinerary ID
+        """
+        try:
+            # Create parent itinerary record
+            itinerary_data = {
+                "user_id": request_data.get("user_id"),
+                "destination": request_data.get("destination", request_data.get("to_city", "")),
+                "start_date": request_data.get("start_date", request_data.get("departure_date", "")),
+                "end_date": request_data.get("end_date", request_data.get("return_date", "")),
+                "status": "published"
+            }
+            
+            itinerary_id = await self.repository.create_itinerary(itinerary_data)
+            logger.info(f"Created itinerary: {itinerary_id}")
+            
+            # Create normalized days and activities
+            for day in itinerary_output.days:
+                # Create day record
+                day_id = await self.repository.create_itinerary_day(
+                    itinerary_id=itinerary_id,
+                    day_number=day.day_number,
+                    date=day.date
+                )
+                logger.debug(f"Created day {day.day_number}: {day_id}")
+                
+                # Create activities for this day
+                for idx, activity in enumerate(day.activities):
+                    activity_data = {
+                        "title": activity.title,
+                        "time": activity.time,
+                        "duration": activity.duration or "1h",
+                        "location": activity.location or request_data.get("destination", ""),
+                        "activity_type": activity.activity_type.value,
+                        "additional_info": activity.additional_info or activity.description,
+                        "order": idx
+                    }
+                    
+                    activity_id = await self.repository.create_activity(itinerary_id, day_id, activity_data)
+                    logger.debug(f"Created activity: {activity.title}")
+            
+            # Update job if provided
+            if job_id:
+                await self.repository.update_job_status(
+                    job_id,
+                    "completed",
+                    result={
+                        "itinerary_id": itinerary_id,
+                        "total_days": itinerary_output.total_days,
+                        "activities_count": sum(len(day.activities) for day in itinerary_output.days)
+                    }
+                )
+            
+            return itinerary_id
+            
+        except Exception as e:
+            logger.error(f"Failed to save itinerary to database: {e}")
+            if job_id:
+                error_msg = json.dumps({
+                    "message": str(e),
+                    "traceback": traceback.format_exc()[:800]
+                })
+                await self.repository.update_job_status(job_id, "failed", error=error_msg)
+            raise
     
     def get_workflow_state(self) -> Dict[str, Any]:
         """Get the current workflow state.

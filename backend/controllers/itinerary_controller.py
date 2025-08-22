@@ -1,9 +1,13 @@
 import json
+import logging
+import traceback
 from fastapi import APIRouter, HTTPException
 from llama_index.core.workflow import Context
 from agents.itinerary_writer import get_itinerary_writer, ItineraryWriterOutput
 from schemas import ItineraryRequest, PriceRange, TripType
+from database.travel_repository import TravelRepository
 
+logger = logging.getLogger(__name__)
 router = APIRouter(tags=["AI Agents"])
 
 
@@ -12,7 +16,23 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryWriterOutput:
     """
     Create a personalized travel itinerary based on flight details and travel interests.
     """
+    repository = TravelRepository()
+    job_id = None
+    
     try:
+        # Create a job to track progress
+        job_data = {
+            "type": "itinerary_generation",
+            "status": "pending",
+            "input": request.dict(),
+            "progress": 0
+        }
+        job_id = await repository.create_job(job_data)
+        logger.info(f"Created job {job_id} for itinerary generation")
+        
+        # Update job status to processing
+        await repository.update_job_status(job_id, "processing", progress=10)
+        
         # Build comprehensive query from request data
         query_parts = []
 
@@ -51,11 +71,39 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryWriterOutput:
             + ". Please create a detailed itinerary with flights recommendations, hotel recommendations, restaurant recommendations, and activities."
         )
 
+        # Update job status for workflow start
+        await repository.update_job_status(job_id, "searching_flights", progress=20)
+        
         # Execute the itinerary workflow
         itinerary_writer = get_itinerary_writer()
+        
+        # Initialize the writer
+        await itinerary_writer.initialize()
+        
+        # Create workflow context with job tracking
         workflow = await itinerary_writer.get_workflow()
         ctx = Context(workflow)
+        
+        # Add job_id to context for progress updates
+        ctx.data = {"job_id": job_id}
+        
+        # Run the workflow (this will call flights, hotels, restaurants)
         result = await itinerary_writer.run_workflow(full_query, ctx=ctx)
+        
+        # Update job status to generating itinerary
+        await repository.update_job_status(job_id, "generating_itinerary", progress=80)
+
+        # Prepare request data for database save
+        request_data = {
+            "user_id": getattr(request, "user_id", None),
+            "destination": request.to_city,
+            "to_city": request.to_city,
+            "from_city": request.from_city,
+            "departure_date": request.departure_date,
+            "return_date": request.return_date,
+            "start_date": request.departure_date,
+            "end_date": request.return_date
+        }
 
         # Check if result has structured_response attribute (proper Pydantic model)
         if hasattr(result, 'structured_response') and result.structured_response:
@@ -63,7 +111,7 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryWriterOutput:
             response_data = result.structured_response
             if isinstance(response_data, dict):
                 # It's a dictionary, use it directly
-                return ItineraryWriterOutput(
+                output = ItineraryWriterOutput(
                     status="success",
                     title=response_data.get("title", "Travel Itinerary"),
                     personalization=response_data.get(
@@ -83,9 +131,31 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryWriterOutput:
                     },
                     message="Itinerary created successfully",
                 )
+                
+                # Save itinerary to database
+                try:
+                    itinerary_id = await itinerary_writer.save_itinerary_to_db(
+                        output,
+                        request_data,
+                        job_id
+                    )
+                    logger.info(f"Saved itinerary {itinerary_id} to database")
+                    
+                    # Update job to completed
+                    await repository.update_job_status(
+                        job_id, 
+                        "completed", 
+                        progress=100,
+                        result={"itinerary_id": itinerary_id}
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to save itinerary to database: {e}")
+                    # Don't fail the response, just log the error
+                
+                return output
             else:
                 # It's a Pydantic model, use its attributes
-                return ItineraryWriterOutput(
+                output = ItineraryWriterOutput(
                     status="success",
                     title=response_data.title,
                     personalization=response_data.personalization,
@@ -103,6 +173,28 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryWriterOutput:
                     },
                     message="Itinerary created successfully",
                 )
+                
+                # Save itinerary to database
+                try:
+                    itinerary_id = await itinerary_writer.save_itinerary_to_db(
+                        response_data,
+                        request_data,
+                        job_id
+                    )
+                    logger.info(f"Saved itinerary {itinerary_id} to database")
+                    
+                    # Update job to completed
+                    await repository.update_job_status(
+                        job_id, 
+                        "completed", 
+                        progress=100,
+                        result={"itinerary_id": itinerary_id}
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to save itinerary to database: {e}")
+                    # Don't fail the response, just log the error
+                
+                return output
         elif isinstance(result, str):
             # Result is a JSON string, parse it
             import json
@@ -118,7 +210,7 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryWriterOutput:
                     result = result[start:end].strip()
                 
                 parsed_data = json.loads(result)
-                return ItineraryWriterOutput(
+                output = ItineraryWriterOutput(
                     status="success",
                     title=parsed_data.get("title", "Travel Itinerary"),
                     personalization=parsed_data.get(
@@ -138,10 +230,66 @@ async def create_itinerary(request: ItineraryRequest) -> ItineraryWriterOutput:
                     },
                     message="Itinerary created successfully",
                 )
+                
+                # Save itinerary to database
+                try:
+                    # Create ItineraryWriterOutput from parsed data
+                    from agents.itinerary_writer import ItineraryWriterOutput as AgentOutput
+                    agent_output = AgentOutput(**parsed_data)
+                    
+                    itinerary_id = await itinerary_writer.save_itinerary_to_db(
+                        agent_output,
+                        request_data,
+                        job_id
+                    )
+                    logger.info(f"Saved itinerary {itinerary_id} to database")
+                    
+                    # Update job to completed
+                    await repository.update_job_status(
+                        job_id, 
+                        "completed", 
+                        progress=100,
+                        result={"itinerary_id": itinerary_id}
+                    )
+                except Exception as e:
+                    logger.error(f"Failed to save itinerary to database: {e}")
+                    # Don't fail the response, just log the error
+                
+                return output
             except json.JSONDecodeError as e:
+                if job_id:
+                    await repository.update_job_status(
+                        job_id, 
+                        "failed", 
+                        error=f"Failed to parse itinerary JSON: {str(e)}"
+                    )
                 raise HTTPException(status_code=500, detail=f"Failed to parse itinerary JSON: {str(e)}")
         else:
             # Unexpected result type
+            if job_id:
+                await repository.update_job_status(
+                    job_id, 
+                    "failed", 
+                    error=f"Unexpected result type: {type(result)}"
+                )
             raise HTTPException(status_code=500, detail=f"Unexpected result type: {type(result)}")
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
+        # Log the full error for debugging
+        logger.error(f"Itinerary creation failed: {e}", exc_info=True)
+        
+        # Update job status if we have a job_id
+        if job_id:
+            error_details = {
+                "message": str(e),
+                "traceback": traceback.format_exc()[:1000]  # Truncate to 1000 chars
+            }
+            await repository.update_job_status(
+                job_id, 
+                "failed", 
+                error=json.dumps(error_details)
+            )
+        
         raise HTTPException(status_code=500, detail=f"Itinerary creation failed: {str(e)}")

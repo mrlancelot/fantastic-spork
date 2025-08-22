@@ -12,6 +12,7 @@ import logging
 sys.path.append(str(Path(__file__).parent.parent))
 
 from service.api_utils import APIUtils
+from database.travel_repository import TravelRepository
 
 logger = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ class FlightService:
     
     def __init__(self):
         self.api_utils = APIUtils()
+        self.repository = TravelRepository()
         
     async def close(self):
         pass
@@ -52,6 +54,35 @@ class FlightService:
                 adults=request.get('adults', 1),
                 travel_class=request.get('class', 'economy')
             )
+            
+            # Save top 3 flights to database (async, non-blocking)
+            if flights:
+                try:
+                    # Prepare flight data for database
+                    flights_for_db = []
+                    for flight in flights:
+                        flights_for_db.append({
+                            'origin': request['origin'],
+                            'destination': request['destination'],
+                            'airline': flight.get('airline', 'Unknown'),
+                            'flight_number': flight.get('flight_number', ''),
+                            'departure_date': flight.get('departure_time', request['departure_date']),
+                            'arrival_date': flight.get('arrival_time'),
+                            'price': flight.get('price', 0),
+                            'stops': flight.get('stops', 0),
+                            'duration': flight.get('duration'),
+                            'booking_url': flight.get('booking_url')
+                        })
+                    
+                    # Save to database (top 3 by price)
+                    flight_ids = await self.repository.create_flights_batch(
+                        flights_for_db,
+                        itinerary_id=request.get('itinerary_id')
+                    )
+                    logger.info(f"Saved top {len(flight_ids)} flights to database")
+                except Exception as e:
+                    logger.error(f"Failed to save flights to database: {e}")
+                    # Continue anyway - don't block the response
             
             flight_options = []
             for flight in flights:
