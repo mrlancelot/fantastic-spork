@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Plane, ChevronLeft, ChevronRight } from 'lucide-react';
 import { RetroWindow, Button, Input, Select, Tag, theme } from '../components/retro';
 import { CityAutocomplete } from '../components/CityAutocomplete';
+import { ApiService, ItineraryRequest } from '../services/api';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,9 +29,46 @@ export const LandingPage: React.FC = () => {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    navigate('/loading');
+    
+    // Validate required fields
+    if (!formData.from || !formData.to || !formData.departure) {
+      alert('Please fill in all required fields');
+      return;
+    }
+
+    if (formData.tripType === 'round' && !formData.return) {
+      alert('Please select a return date for round trip');
+      return;
+    }
+
+    try {
+      // Map form data to API request format
+      const apiRequest: ItineraryRequest = {
+        trip_type: formData.tripType === 'round' ? 'round_trip' : 'one_way',
+        from_city: formData.from,
+        to_city: formData.to,
+        departure_date: formData.departure,
+        return_date: formData.tripType === 'round' ? formData.return : undefined,
+        adults: parseInt(formData.passengers),
+        travel_class: formData.class as 'economy' | 'business' | 'first',
+        interests: formData.interests.join(', '),
+        price_range: 'budget' // Default to budget, could be made configurable
+      };
+
+      // Navigate to loading page with the API request data
+      navigate('/loading', { 
+        state: { 
+          apiRequest,
+          formData 
+        } 
+      });
+      
+    } catch (error) {
+      console.error('Error preparing itinerary request:', error);
+      alert('There was an error preparing your request. Please try again.');
+    }
   };
 
   return (
