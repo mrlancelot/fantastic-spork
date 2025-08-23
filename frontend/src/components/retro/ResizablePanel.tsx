@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { X, MessageSquare } from 'lucide-react';
 
 interface ResizablePanelProps {
   children: React.ReactNode;
@@ -6,6 +7,7 @@ interface ResizablePanelProps {
   maxWidthPercent?: number;
   defaultWidthPercent?: number;
   storageKey?: string;
+  mobileBreakpoint?: number;
 }
 
 export const ResizablePanel: React.FC<ResizablePanelProps> = ({
@@ -13,7 +15,8 @@ export const ResizablePanel: React.FC<ResizablePanelProps> = ({
   minWidthPercent = 30,
   maxWidthPercent = 60,
   defaultWidthPercent = 35,
-  storageKey = 'resizable-panel-width'
+  storageKey = 'resizable-panel-width',
+  mobileBreakpoint = 768
 }) => {
   const [widthPercent, setWidthPercent] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -25,7 +28,20 @@ export const ResizablePanel: React.FC<ResizablePanelProps> = ({
   
   const [isDragging, setIsDragging] = useState(false);
   const [isHovering, setIsHovering] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Check if screen is mobile size
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < mobileBreakpoint);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, [mobileBreakpoint]);
 
   // Save to localStorage whenever width changes
   useEffect(() => {
@@ -35,12 +51,13 @@ export const ResizablePanel: React.FC<ResizablePanelProps> = ({
   }, [widthPercent, storageKey]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (isMobile) return;
     e.preventDefault();
     setIsDragging(true);
-  }, []);
+  }, [isMobile]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || !containerRef.current) return;
+    if (!isDragging || !containerRef.current || isMobile) return;
 
     const container = containerRef.current.parentElement;
     if (!container) return;
@@ -51,14 +68,14 @@ export const ResizablePanel: React.FC<ResizablePanelProps> = ({
     // Constrain within min/max bounds
     const constrainedWidth = Math.min(maxWidthPercent, Math.max(minWidthPercent, newWidthPercent));
     setWidthPercent(constrainedWidth);
-  }, [isDragging, minWidthPercent, maxWidthPercent]);
+  }, [isDragging, minWidthPercent, maxWidthPercent, isMobile]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(false);
   }, []);
 
   useEffect(() => {
-    if (isDragging) {
+    if (isDragging && !isMobile) {
       document.addEventListener('mousemove', handleMouseMove);
       document.addEventListener('mouseup', handleMouseUp);
       document.body.style.cursor = 'col-resize';
@@ -71,38 +88,75 @@ export const ResizablePanel: React.FC<ResizablePanelProps> = ({
         document.body.style.userSelect = '';
       };
     }
-  }, [isDragging, handleMouseMove, handleMouseUp]);
+  }, [isDragging, handleMouseMove, handleMouseUp, isMobile]);
 
+  // Mobile modal overlay
+  if (isMobile) {
+    return (
+      <>
+        {/* Mobile toggle button */}
+        <button
+          onClick={() => setIsModalOpen(true)}
+          className="fixed bottom-4 right-4 z-40 bg-[#4A90E2] text-white p-3 rounded-full border-2 border-[#222222] shadow-[0_4px_0_0_#222222] hover:shadow-[0_2px_0_0_#222222] hover:translate-y-[2px] transition-all"
+        >
+          <MessageSquare className="w-6 h-6" />
+        </button>
+
+        {/* Mobile modal */}
+        {isModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-end">
+            {/* Backdrop */}
+            <div 
+              className="absolute inset-0 bg-black bg-opacity-50"
+              onClick={() => setIsModalOpen(false)}
+            />
+            
+            {/* Modal content */}
+            <div className="relative w-full bg-white rounded-t-[20px] border-2 border-[#222222] shadow-[0_-4px_0_0_#222222] max-h-[80vh] overflow-hidden">
+              {/* Modal header */}
+              <div className="flex items-center justify-between p-4 border-b-2 border-[#222222] bg-purple-400">
+                <h3 className="font-semibold text-white">Travel Assistant</h3>
+                <button
+                  onClick={() => setIsModalOpen(false)}
+                  className="w-8 h-8 bg-red-400 border border-black rounded-sm flex items-center justify-center hover:bg-red-500"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              {/* Modal body */}
+              <div className="p-4 overflow-y-auto max-h-[calc(80vh-80px)]">
+                {children}
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // Desktop resizable panel
   return (
     <div 
       ref={containerRef}
-      className="relative flex h-full"
+      className="relative flex"
       style={{ width: `${widthPercent}%` }}
     >
       {/* Resize handle */}
       <div
-        className="absolute left-0 top-0 bottom-0 w-2 bg-transparent cursor-col-resize z-10 -ml-1 flex items-center justify-center group"
+        className="absolute left-0 top-0 bottom-0 w-1 bg-transparent hover:bg-blue-300 cursor-col-resize z-10 -ml-0.5"
         onMouseDown={handleMouseDown}
         onMouseEnter={() => setIsHovering(true)}
         onMouseLeave={() => setIsHovering(false)}
       >
-        {/* Visual indicator - vertical dots */}
-        <div className={`w-1 h-12 flex flex-col justify-center items-center gap-1 transition-opacity duration-200 ${
+        {/* Visual indicator */}
+        <div className={`absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 w-1 h-8 bg-gray-300 rounded-full transition-opacity ${
           isHovering || isDragging ? 'opacity-100' : 'opacity-0'
-        }`}>
-          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-          <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
-        </div>
-        
-        {/* Invisible wider hit area */}
-        <div className="absolute inset-0 w-4 -ml-1"></div>
+        }`} />
       </div>
       
       {/* Panel content */}
-      <div className="flex-1 pl-3 h-full">
+      <div className="flex-1 pl-2">
         {children}
       </div>
     </div>
