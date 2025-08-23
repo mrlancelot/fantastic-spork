@@ -2,12 +2,25 @@ import os, sys, json, re, tempfile, yt_dlp
 from urllib.parse import urlparse
 from dotenv import load_dotenv
 from openai import OpenAI
+from typing import Optional
 
 load_dotenv()
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=os.getenv("OPENROUTER_API_KEY")
-)
+
+# Lazy initialization of OpenAI client
+_client: Optional[OpenAI] = None
+
+def get_openai_client():
+    """Get or create OpenAI client with lazy initialization"""
+    global _client
+    if _client is None:
+        api_key = os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            raise ValueError("OPENROUTER_API_KEY not found in environment variables")
+        _client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key
+        )
+    return _client
 
 SUPPORTED_PLATFORMS = {
     'youtube.com': 'YouTube', 'youtu.be': 'YouTube',
@@ -136,6 +149,7 @@ Format as JSON:
   "analysis_confidence": "high/medium/low"
 }}"""
         
+        client = get_openai_client()
         response = client.chat.completions.create(
             model="z-ai/glm-4.5",
             messages=[

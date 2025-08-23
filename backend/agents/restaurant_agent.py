@@ -3,10 +3,11 @@ from unittest import result
 from llama_index.core.agent.workflow import ReActAgent
 from llama_index.core.workflow import Context
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from llama_index.core.agent.workflow import AgentStream, AgentOutput, ToolCallResult, ToolCall
 import logging
-from utils.llm_manager import get_powerful_llm
+from utils.llm_manager import get_budget_llm
+from database.travel_repository import TravelRepository
 
 # Import constants and helper functions
 from constants import (
@@ -53,6 +54,7 @@ class RestaurantAgent:
         
         self.agent = None
         self._initialized = False
+        self.repository = TravelRepository()
     
     async def initialize(self):
         """Initialize the MCP client and agent."""
@@ -65,7 +67,7 @@ class RestaurantAgent:
             
             # Create the agent with better error handling
             try:
-                llm = get_powerful_llm()
+                llm = get_budget_llm()
                 logger.info("LLM initialized successfully for restaurant agent")
             except Exception as llm_error:
                 logger.error(f"Failed to initialize LLM for restaurant agent: {llm_error}")
@@ -144,7 +146,79 @@ Return the results in the specified RestaurantOutput format with a list of Resta
         except Exception as e:
             raise Exception(f"Failed to initialize MCP agent: {e}")
     
-    async def scrape_restaurants(self, query: str, stream: bool = False, price_range: Optional[str] = None) -> RestaurantOutput:
+    async def _save_restaurants_to_db(self, restaurants: List[Any], itinerary_id: Optional[str] = None) -> List[str]:
+        """Save restaurant results to database (all results, max 30)"""
+        if not restaurants:
+            logger.info("No restaurants to save to database")
+            return []
+        
+        logger.info(f"Preparing to save {len(restaurants)} restaurants to database")
+        
+        try:
+            # Convert Restaurant models or dicts to database format
+            restaurants_for_db = []
+            for restaurant in restaurants:
+                # Handle both Restaurant objects and dicts
+                if isinstance(restaurant, dict):
+                    name = restaurant.get('name', 'Unknown Restaurant')
+                    location = restaurant.get('location', '')
+                    cuisine = restaurant.get('cuisine', '')
+                    price_range = "$$"  # Default
+                    rating = restaurant.get('rating')
+                    link = restaurant.get('link')
+                    lunch_budget = restaurant.get('lunch_budget')
+                    dinner_budget = restaurant.get('dinner_budget')
+                else:
+                    # It's a Restaurant object
+                    name = restaurant.name
+                    location = restaurant.location or ''
+                    cuisine = restaurant.cuisine
+                    price_range = "$$"  # Default
+                    rating = restaurant.rating
+                    link = restaurant.link
+                    lunch_budget = restaurant.lunch_budget
+                    dinner_budget = restaurant.dinner_budget
+                
+                # Map price budgets to price range
+                if lunch_budget or dinner_budget:
+                    # Try to determine price range from budget strings
+                    budget_str = dinner_budget or lunch_budget or ""
+                    if "$" in budget_str:
+                        dollar_count = budget_str.count("$")
+                        if dollar_count > 0:
+                            price_range = "$" * min(dollar_count, 4)
+                    elif any(x in budget_str.lower() for x in ["budget", "cheap", "<10", "<15"]):
+                        price_range = "$"
+                    elif any(x in budget_str.lower() for x in ["expensive", "upscale", ">50", ">100"]):
+                        price_range = "$$$"
+                    elif any(x in budget_str.lower() for x in ["luxury", "fine", ">150", ">200"]):
+                        price_range = "$$$$"
+                
+                restaurants_for_db.append({
+                    'name': name,
+                    'address': location if location else "Unknown Location",  # Ensure address is not empty
+                    'cuisine': [cuisine] if cuisine else ["Various"],  # Default cuisine if empty
+                    'price_range': price_range,
+                    'rating': rating if rating else 0.0,  # Default rating to 0
+                    'website': link if link else "",
+                    'source_url': link if link else "",
+                    'description': f"Lunch: {lunch_budget or 'N/A'}, Dinner: {dinner_budget or 'N/A'}",
+                    'hours': ""  # Empty string instead of None
+                })
+            
+            # Save to database (all results, max 30)
+            restaurant_ids = await self.repository.create_restaurants_batch(
+                restaurants_for_db,
+                itinerary_id=itinerary_id
+            )
+            logger.info(f"Saved {len(restaurant_ids)} restaurants to database")
+            return restaurant_ids
+            
+        except Exception as e:
+            logger.error(f"Failed to save restaurants to database: {e}")
+            return []
+    
+    async def scrape_restaurants(self, query: str, stream: bool = False, price_range: Optional[str] = None, itinerary_id: Optional[str] = None) -> RestaurantOutput:
         """Search and extract restaurant information using the MCP agent."""
         if not self._initialized:
             await self.initialize()
@@ -155,11 +229,34 @@ Return the results in the specified RestaurantOutput format with a list of Resta
             logger.info(f"Detected country: {country}")
         
         # Handle Japan queries with Tabelog URL construction and tavily_extract
+        result = None
         if country == "japan":
-            return await self._handle_japan_query(query, price_range, stream)
+            result = await self._handle_japan_query(query, price_range, stream)
+        else:
+            # Handle other countries with existing tavily_search logic
+            result = await self._handle_other_countries_query(query, price_range, stream, country)
         
-        # Handle other countries with existing tavily_search logic
-        return await self._handle_other_countries_query(query, price_range, stream, country)
+        # Save restaurants to database (all results, max 30)
+        if result:
+            if hasattr(result, 'restaurants'):
+                # It's a RestaurantOutput object
+                logger.info(f"Saving RestaurantOutput with {len(result.restaurants)} restaurants")
+                await self._save_restaurants_to_db(result.restaurants, itinerary_id)
+            elif isinstance(result, dict) and 'restaurants' in result:
+                # It's a dict with restaurants key
+                logger.info(f"Result is dict format with {len(result.get('restaurants', []))} restaurants")
+                # Convert dict restaurants to Restaurant objects if needed
+                restaurants_list = result['restaurants']
+                if restaurants_list and isinstance(restaurants_list[0], dict):
+                    # The restaurants are already dicts, just pass them directly
+                    # The _save_restaurants_to_db method expects Restaurant objects from the agent
+                    # but it converts them to dicts anyway for the database
+                    # So we can skip the Restaurant model conversion and pass dicts directly
+                    await self._save_restaurants_to_db(restaurants_list, itinerary_id)
+                else:
+                    await self._save_restaurants_to_db(restaurants_list, itinerary_id)
+        
+        return result
     
     async def _handle_japan_query(self, query: str, price_range: Optional[str], stream: bool) -> RestaurantOutput:
         """Handle Japan-specific queries using Tabelog URL construction and tavily_extract."""
@@ -228,10 +325,25 @@ Return the results in the specified RestaurantOutput format with a list of Resta
                     return RestaurantOutput(restaurants=[])
                 else:
                     response = await self.agent.run(f"Extract restaurant information from this Tabelog page: {tabelog_url}. The page is already sorted by rating, so focus on the first 10 restaurants listed.")
+                    
+                    # Debug logging to understand response structure
+                    logger.info(f"Response type: {type(response)}")
+                    logger.info(f"Response attributes: {dir(response)}")
+                    
                     if hasattr(response, 'structured_response'):
+                        logger.info(f"structured_response type: {type(response.structured_response)}")
                         return response.structured_response
-                    if hasattr(response, 'response') and hasattr(response.response, 'structured_output'):
-                        return response.response.structured_output
+                    if hasattr(response, 'response'):
+                        logger.info(f"response.response type: {type(response.response)}")
+                        if hasattr(response.response, 'structured_output'):
+                            logger.info(f"structured_output type: {type(response.response.structured_output)}")
+                            return response.response.structured_output
+                    
+                    # Check if response is already a dict with the expected structure
+                    if isinstance(response, dict):
+                        logger.info(f"Response is dict with keys: {response.keys()}")
+                        return RestaurantOutput(restaurants=response.get('restaurants', []))
+                    
                     logger.warning(f"Unexpected response structure: {type(response)}")
                     return RestaurantOutput(restaurants=[])
             except Exception as e:
@@ -366,11 +478,20 @@ async def get_global_restaurant_agent() -> RestaurantAgent:
         await _global_restaurant_agent.initialize()
     return _global_restaurant_agent
 
-async def call_restaurant_agent(ctx: Context, query: str) -> str:
+async def call_restaurant_agent(ctx: Context, query: str, itinerary_id: Optional[str] = None) -> str:
     """Useful for recording research notes based on a specific prompt."""
     agent = await get_global_restaurant_agent()
     
-    result = await agent.scrape_restaurants(query=query)
+    # Extract itinerary_id from context if not provided
+    if not itinerary_id and ctx and hasattr(ctx, 'store'):
+        try:
+            async with ctx.store.edit_state() as ctx_state:
+                if "state" in ctx_state and "itinerary_id" in ctx_state["state"]:
+                    itinerary_id = ctx_state["state"]["itinerary_id"]
+        except:
+            pass
+    
+    result = await agent.scrape_restaurants(query=query, itinerary_id=itinerary_id)
 
     async with ctx.store.edit_state() as ctx_state:
         ctx_state["state"]["restaurants"] = result

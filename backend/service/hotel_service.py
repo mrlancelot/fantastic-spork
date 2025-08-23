@@ -11,6 +11,7 @@ import logging
 sys.path.append(str(Path(__file__).parent.parent))
 
 from service.api_utils import APIUtils
+from database.travel_repository import TravelRepository
 
 
 class HotelService:
@@ -18,6 +19,7 @@ class HotelService:
     def __init__(self):
         self.logger = logging.getLogger('HotelService')
         self.api_utils = APIUtils()
+        self.repository = TravelRepository()
         
     async def initialize(self):
         pass
@@ -72,6 +74,46 @@ class HotelService:
                         if price_matches:
                             hotel['price'] = float(price_matches[0])
             
+            # Save top 5 hotels to database (2 cheapest + 3 best rated)
+            if hotels:
+                try:
+                    # Prepare hotel data for database
+                    hotels_for_db = []
+                    for hotel in hotels:
+                        # Determine platform from URL
+                        url = hotel.get('url', '').lower()
+                        source = hotel.get('source', '').lower()
+                        
+                        # Handle price being None
+                        price = hotel.get('price')
+                        if price is None:
+                            price = 0
+                        
+                        hotels_for_db.append({
+                            'name': hotel.get('name', 'Unknown Hotel'),
+                            'address': hotel.get('location', hotel.get('address', '')),
+                            'check_in_date': request.get('check_in', ''),
+                            'check_out_date': request.get('check_out', ''),
+                            'price': price,
+                            'rating': hotel.get('rating'),
+                            'amenities': hotel.get('amenities', []),
+                            'source': 'airbnb' if 'airbnb' in url or 'airbnb' in source else 'booking',
+                            'property_type': hotel.get('room_type', hotel.get('property_type', 'hotel')),
+                            'booking_url': hotel.get('url'),
+                            'image_url': hotel.get('image_url'),
+                            'reviews_count': hotel.get('reviews_count')
+                        })
+                    
+                    # Save to database (top 5: 2 cheapest + 3 best rated)
+                    hotel_ids = await self.repository.create_hotels_batch(
+                        hotels_for_db,
+                        itinerary_id=request.get('itinerary_id')
+                    )
+                    self.logger.info(f"Saved top {len(hotel_ids)} hotels to database")
+                except Exception as e:
+                    self.logger.error(f"Failed to save hotels to database: {e}")
+                    # Continue anyway - don't block the response
+            
             response = {
                 'status': 'success',
                 'hotels': hotels,
@@ -107,10 +149,10 @@ class HotelService:
         prices = [h['price'] for h in hotels if h.get('price')]
         ratings = [h['rating'] for h in hotels if h.get('rating')]
         
-        # Count by price range
-        budget = len([h for h in hotels if h.get('price', 0) < 100])
-        mid_range = len([h for h in hotels if 100 <= h.get('price', 0) < 200])
-        luxury = len([h for h in hotels if h.get('price', 0) >= 200])
+        # Count by price range - handle None values properly
+        budget = len([h for h in hotels if h.get('price') is not None and h.get('price') < 100])
+        mid_range = len([h for h in hotels if h.get('price') is not None and 100 <= h.get('price') < 200])
+        luxury = len([h for h in hotels if h.get('price') is not None and h.get('price') >= 200])
         
         # Amenities frequency
         all_amenities = []

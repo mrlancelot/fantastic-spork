@@ -1,6 +1,9 @@
 from llama_index.core.agent.workflow import FunctionAgent
 from typing import Dict, Any, Optional, List
 import logging
+import json
+import traceback
+from datetime import datetime
 from llama_index.core.agent.workflow import AgentStream, AgentOutput, ToolCallResult, ToolCall
 from llama_index.core.workflow import Context
 from pydantic import BaseModel, Field
@@ -9,12 +12,14 @@ import os
 from agents.restaurant_agent import call_restaurant_agent
 from service.flight_service import call_flight_service
 from service.hotel_service import call_hotel_service
-from utils.llm_manager import get_powerful_llm
+from utils.llm_manager import get_budget_llm
+from database.travel_repository import TravelRepository
 
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 class ItineraryWriterError(Exception):
     """Custom exception for itinerary writer errors."""
@@ -107,24 +112,30 @@ class ItineraryWriter:
         Args:
             api_token: Optional API token for MCP agents
         """
+        logger.info("=== INITIALIZING ITINERARY WRITER ===")
         self.api_token = api_token
         self._workflow = None
         self._initialized = False
+        self.repository = TravelRepository()
         
-        logger.info("ItineraryWriter initialized")
+        logger.info("✓ ItineraryWriter initialized")
     
     async def initialize(self) -> None:
         """Initialize the workflow and agents."""
         if self._initialized:
+            logger.debug("Already initialized, skipping")
             return
             
         try:
-            logger.info("Initializing itinerary writer service...")
+            logger.info("=== INITIALIZING WORKFLOW AND AGENTS ===")
             
-            # Use the centralized LLM manager to get a powerful LLM
-            llm = get_powerful_llm()
+            # Use the centralized LLM manager to get a budget LLM
+            logger.debug("Getting budget LLM from manager")
+            llm = get_budget_llm()
+            logger.info("✓ Got budget LLM instance")
             
             # Create the workflow
+            logger.debug("Creating FunctionAgent workflow")
             self._workflow = FunctionAgent(
                 name="orchestrator_agent",
                 llm=llm,
@@ -141,13 +152,26 @@ class ItineraryWriter:
     "4. Use call_restaurant_agent to find top restaurants at the destination that match the user's budget preferences and interests\n"
     "5. Compile all this information into a structured ItineraryWriterOutput format\n"
     
-    "CRITICAL INSTRUCTIONS:\n"
-    "- You MUST use the available tools to gather current, accurate information\n"
-    "- Extract and focus on the specific destination, dates, and preferences mentioned in the user's request\n"
-    "- Prioritize recommendations that align with the user's stated interests and budget constraints\n"
+    "CRITICAL OUTPUT INSTRUCTIONS:\n"
+    "- You MUST return a properly structured ItineraryWriterOutput with ALL required fields:\n"
+    "  * title: A descriptive title for the itinerary (e.g., 'San Jose to Tokyo Travel Itinerary')\n"
+    "  * personalization: A note about how the itinerary is personalized (e.g., 'Personalized for technology and food interests')\n"
+    "  * total_days: The total number of days in the trip\n"
+    "  * days: A list of DayItinerary objects, each containing:\n"
+    "    - day_number: Sequential day number (1, 2, 3, etc.)\n"
+    "    - date: Date in format 'Day Name, Month Day' (e.g., 'Friday, October 10')\n"
+    "    - year: The year as an integer (e.g., 2025)\n"
+    "    - activities: List of ItineraryActivity objects with time, title, description, location, duration, activity_type, and additional_info\n"
+    "\n"
+    "- Each day should include activities like:\n"
+    "  * Morning: Departure flight or hotel checkout\n"
+    "  * Afternoon: Arrival, hotel check-in, or sightseeing\n"
+    "  * Evening: Restaurant recommendations from your research\n"
+    "  * Activities should be based on the actual flight times, hotels, and restaurants you found\n"
+    "\n"
+    "- Use the data from your tool calls to populate the itinerary with real information\n"
     "- Ensure all recommendations fit within the specified budget and travel dates\n"
-    "- Once you have gathered all necessary information, format it into the required ItineraryWriterOutput structure\n"
-    "- Do NOT get stuck in reasoning loops - make tool calls, gather information, then produce the final structured output\n"
+    "- Do NOT return raw JSON data from tools - transform it into the ItineraryWriterOutput format\n"
     "- Always provide personalized recommendations based on the user's specific requirements and interests\n"),
                 output_cls=ItineraryWriterOutput,
                 initial_state={
@@ -158,7 +182,7 @@ class ItineraryWriter:
             )
             
             self._initialized = True
-            logger.info("Itinerary writer service initialized successfully")
+            logger.info("✓ Itinerary writer service initialized successfully")
             
         except Exception as e:
             logger.error(f"Failed to initialize itinerary writer service: {e}")
@@ -195,42 +219,145 @@ class ItineraryWriter:
         Raises:
             ItineraryWriterError: If workflow execution fails
         """
+        logger.info("=== RUNNING ITINERARY WORKFLOW ===")
+        logger.debug(f"Query length: {len(query)} characters")
+        logger.debug(f"Query preview: {query[:200]}...")
+        
         try:
             workflow = await self.get_workflow()
-            logger.info(f"Running itinerary workflow with query: {query}")
+            logger.info("✓ Got workflow instance, starting execution")
             
             # Run the workflow and await the handler to get the result
+            logger.debug("Creating workflow handler")
             handler = workflow.run(ctx=ctx, user_msg=query, **kwargs)
+            
+            logger.info("Streaming workflow events...")
+            tool_calls_made = []
             async for event in handler.stream_events():
                 if isinstance(event, AgentStream):
                     if event.delta:
                         print(event.delta, end="", flush=True)
                 elif isinstance(event, AgentOutput):
                     if event.tool_calls:
-                        print(
-                            "🛠️  Planning to use tools:",
-                            [call.tool_name for call in event.tool_calls],
-                        )
+                        tools = [call.tool_name for call in event.tool_calls]
+                        logger.info(f"🛠️ Planning to use tools: {tools}")
+                        print(f"🛠️ Planning to use tools: {tools}")
                 elif isinstance(event, ToolCallResult):
+                    logger.info(f"🔧 Tool Result ({event.tool_name}): Success")
+                    logger.debug(f"  Arguments: {event.tool_kwargs}")
+                    logger.debug(f"  Output preview: {str(event.tool_output)[:200]}...")
                     print(f"🔧 Tool Result ({event.tool_name}):")
                     print(f"  Arguments: {event.tool_kwargs}")
                     print(f"  Output: {event.tool_output}")
                 elif isinstance(event, ToolCall):
+                    tool_calls_made.append(event.tool_name)
+                    logger.info(f"🔨 Calling Tool: {event.tool_name}")
+                    logger.debug(f"  With arguments: {event.tool_kwargs}")
                     print(f"🔨 Calling Tool: {event.tool_name}")
                     print(f"  With arguments: {event.tool_kwargs}")
+            
+            logger.info(f"Workflow event streaming complete. Tools called: {tool_calls_made}")
             result = await handler
             
-            logger.info("Itinerary workflow executed successfully")
-            logger.info(f"Itinerary workflow result: {result}")
+            logger.info("✓ Itinerary workflow executed successfully")
+            logger.debug(f"Result type: {type(result)}")
+            logger.debug(f"Result preview: {str(result)[:500]}..." if result else "Result is None")
             
             # The result is the final output from the workflow
             # For AgentWorkflow, this typically contains the agent's response
             return result
             
         except Exception as e:
-            logger.error(f"Itinerary workflow execution failed: {e}")
+            logger.error(f"❌ Itinerary workflow execution failed: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
             raise ItineraryWriterError(f"Workflow execution failed: {e}")
 
+    
+    async def save_itinerary_to_db(self, itinerary_output: ItineraryWriterOutput, 
+                                   request_data: Dict[str, Any], 
+                                   job_id: Optional[str] = None) -> str:
+        """Save the itinerary to database in normalized format.
+        
+        Args:
+            itinerary_output: The structured itinerary output
+            request_data: Original request data (destination, dates, etc.)
+            job_id: Optional job ID to update
+            
+        Returns:
+            Created itinerary ID
+        """
+        logger.info("=== SAVING ITINERARY TO DATABASE ===")
+        logger.debug(f"Itinerary has {len(itinerary_output.days)} days")
+        logger.debug(f"Request data: {request_data}")
+        
+        try:
+            # Create parent itinerary record
+            itinerary_data = {
+                "user_id": request_data.get("user_id"),
+                "destination": request_data.get("destination", request_data.get("to_city", "")),
+                "start_date": request_data.get("start_date", request_data.get("departure_date", "")),
+                "end_date": request_data.get("end_date", request_data.get("return_date", "")),
+                "status": "published"
+            }
+            logger.debug(f"Creating itinerary with data: {itinerary_data}")
+            
+            itinerary_id = await self.repository.create_itinerary(itinerary_data)
+            logger.info(f"✓ Created parent itinerary: {itinerary_id}")
+            
+            # Create normalized days and activities
+            logger.info(f"Creating {len(itinerary_output.days)} days with activities")
+            for day in itinerary_output.days:
+                logger.debug(f"Processing day {day.day_number}: {day.date}")
+                
+                # Create day record
+                day_id = await self.repository.create_itinerary_day(
+                    itinerary_id=itinerary_id,
+                    day_number=day.day_number,
+                    date=day.date
+                )
+                logger.info(f"✓ Created day {day.day_number}: {day.date} (ID: {day_id})")
+                
+                # Create activities for this day
+                logger.debug(f"Creating {len(day.activities)} activities for day {day.day_number}")
+                for idx, activity in enumerate(day.activities):
+                    activity_data = {
+                        "title": activity.title,
+                        "time": activity.time,
+                        "duration": activity.duration or "1h",
+                        "location": activity.location or request_data.get("destination", ""),
+                        "activity_type": activity.activity_type.value,
+                        "additional_info": activity.additional_info or activity.description,
+                        "order": idx
+                    }
+                    
+                    activity_id = await self.repository.create_activity(itinerary_id, day_id, activity_data)
+                    logger.debug(f"Created activity: {activity.title}")
+            
+            # Update job if provided
+            if job_id:
+                await self.repository.update_job_status(
+                    job_id,
+                    "completed",
+                    result={
+                        "itinerary_id": itinerary_id,
+                        "total_days": itinerary_output.total_days,
+                        "activities_count": sum(len(day.activities) for day in itinerary_output.days)
+                    }
+                )
+            
+            return itinerary_id
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to save itinerary to database: {e}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            if job_id:
+                logger.debug(f"Updating job {job_id} to failed status")
+                error_msg = json.dumps({
+                    "message": str(e),
+                    "traceback": traceback.format_exc()[:800]
+                })
+                await self.repository.update_job_status(job_id, "failed", error=error_msg)
+            raise
     
     def get_workflow_state(self) -> Dict[str, Any]:
         """Get the current workflow state.

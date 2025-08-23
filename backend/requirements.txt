@@ -34,6 +34,9 @@ amadeus==12.0.0
 # Environment Variables
 python-dotenv==1.0.1
 
+# Database
+convex==0.7.0
+
 # Web Scraping (Required for flights and hotels)
 beautifulsoup4==4.12.3
 
