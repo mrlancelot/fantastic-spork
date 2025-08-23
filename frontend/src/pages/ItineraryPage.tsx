@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { MessageSquare, Send } from 'lucide-react';
-import { RetroWindow, Button, Input, theme } from '../components/retro';
+import { RetroWindow, Button, Input, theme, ResizablePanel } from '../components/retro';
 import { ItineraryCard } from '../components/retro/ItineraryCard';
 import { DayTabs } from '../components/retro/DayTabs';
+import { Header } from '../components/Header';
 
 export const ItineraryPage: React.FC = () => {
   const [assistantInput, setAssistantInput] = useState('');
@@ -69,23 +70,27 @@ export const ItineraryPage: React.FC = () => {
   ];
 
   return (
-    <div className={`min-h-screen ${theme.colors.canvas} p-8`}>
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-bold mb-2">Your Itinerary</h1>
-          <p className="text-gray-600">General sightseeing and local experiences</p>
-        </div>
+    <div className="min-h-screen flex flex-col">
+      {/* Header spanning full width */}
+      <Header />
+      
+      <div className="flex flex-1">
+        {/* Main content area */}
+        <div className={`flex-1 ${theme.colors.canvas} p-8`}>
+          <div className="max-w-6xl mx-auto">
+            {/* Header */}
+            <div className="mb-8">
+              <h1 className="text-2xl font-bold mb-2">Your Itinerary</h1>
+              <p className="text-gray-600">General sightseeing and local experiences</p>
+            </div>
 
-        {/* Day Tabs */}
-        <DayTabs 
-          days={totalDays} 
-          activeDay={activeDay} 
-          onDayChange={setActiveDay} 
-        />
+            {/* Day Tabs */}
+            <DayTabs 
+              days={totalDays} 
+              activeDay={activeDay} 
+              onDayChange={setActiveDay} 
+            />
 
-        <div className="flex gap-4">
-          <div className="flex-1">
             {/* Current Day Content */}
             {currentDayData && (
               <div>
@@ -111,8 +116,16 @@ export const ItineraryPage: React.FC = () => {
               </div>
             )}
           </div>
-          
-          <div className="w-80">
+        </div>
+        
+        {/* Chat panel - full height, flush to right */}
+        <ResizablePanel 
+          defaultWidthPercent={35}
+          minWidthPercent={30}
+          maxWidthPercent={60}
+          storageKey="itinerary-assistant-width"
+        >
+          <div className="h-full bg-white">
             <RetroWindow variant="assistant" title="Travel Assistant" icon={<MessageSquare className="w-4 h-4" />}>
               <div className="space-y-4">
                 <div className="bg-purple-50 border-2 border-[#222222] rounded-[10px] p-3">
@@ -145,7 +158,7 @@ export const ItineraryPage: React.FC = () => {
               </div>
             </RetroWindow>
           </div>
-        </div>
+        </ResizablePanel>
       </div>
     </div>
   );

@@ -219,3 +219,4 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ progress }) => {
 };
 
 export { DayTabs } from './DayTabs';
+export { ResizablePanel } from './ResizablePanel';
