@@ -217,3 +217,5 @@ export const ProgressBar: React.FC<ProgressBarProps> = ({ progress }) => {
     </div>
   );
 };
+
+export { DayTabs } from './DayTabs';
