@@ -39,6 +39,8 @@ export const LoadingPage: React.FC = () => {
       return;
     }
 
+    let isCancelled = false;
+
     const createItinerary = async () => {
       try {
         setError(null);
@@ -47,45 +49,55 @@ export const LoadingPage: React.FC = () => {
         // Make the API call
         const response: ItineraryResponse = await ApiService.createItinerary(apiRequest);
         
-        // Navigate to itinerary page with the response data
-        navigate('/itinerary', { 
-          state: { 
-            itineraryData: response,
-            formData 
-          } 
-        });
+        // Only proceed if component hasn't been unmounted
+        if (!isCancelled) {
+          // Navigate to itinerary page with the response data
+          navigate('/itinerary', { 
+            state: { 
+              itineraryData: response,
+              formData 
+            } 
+          });
+        }
         
       } catch (error) {
-        console.error('Error creating itinerary:', error);
-        setError(error instanceof Error ? error.message : 'Failed to create itinerary');
-        
-        // Auto-retry up to 2 times for network errors
-        if (retryCount < 2 && (error instanceof Error && error.message.includes('fetch'))) {
-          setTimeout(() => {
-            setRetryCount(prev => prev + 1);
-            setProgress(0);
-            createItinerary();
-          }, 3000);
+        if (!isCancelled) {
+          console.error('Error creating itinerary:', error);
+          setError(error instanceof Error ? error.message : 'Failed to create itinerary');
+          
+          // Auto-retry up to 2 times for network errors
+          if (retryCount < 2 && (error instanceof Error && error.message.includes('fetch'))) {
+            setTimeout(() => {
+              if (!isCancelled) {
+                setRetryCount(prev => prev + 1);
+                setProgress(0);
+                createItinerary();
+              }
+            }, 3000);
+          }
         }
       }
     };
 
     // Simulate progress updates while API is working
     const progressInterval = setInterval(() => {
-      setProgress(prev => {
-        const newProgress = Math.min(prev + Math.random() * 8 + 2, 95); // Don't go to 100% until API completes
-        const currentTaskData = getTaskFromProgress(newProgress);
-        setCurrentTask(currentTaskData.detail);
-        return newProgress;
-      });
+      if (!isCancelled) {
+        setProgress(prev => {
+          const newProgress = Math.min(prev + Math.random() * 8 + 2, 95); // Don't go to 100% until API completes
+          const currentTaskData = getTaskFromProgress(newProgress);
+          setCurrentTask(currentTaskData.detail);
+          return newProgress;
+        });
+      }
     }, 1000);
 
     createItinerary();
 
     return () => {
+      isCancelled = true;
       clearInterval(progressInterval);
     };
-  }, [apiRequest, navigate, formData, retryCount]);
+  }, [apiRequest, navigate, formData]); // Removed retryCount from dependencies
 
   const handleRetry = () => {
     setError(null);
