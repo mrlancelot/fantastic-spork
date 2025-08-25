@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { MessageSquare, Send } from 'lucide-react';
-import { RetroWindow, Button, Input, theme, ResizablePanel } from '../components/retro';
+import { Button, Input, theme } from '../components/retro';
 import { ItineraryCard } from '../components/retro/ItineraryCard';
 import { DayTabs } from '../components/retro/DayTabs';
 import { ItineraryResponse, Activity } from '../services/api';
@@ -109,7 +109,7 @@ export const ItineraryPage: React.FC = () => {
   };
 
   return (
-    <div className={`min-h-screen ${theme.colors.canvas}`}>
+    <div className={`h-screen ${theme.colors.canvas} flex flex-col overflow-hidden`}>
       {/* Header */}
       <ItineraryHeader
         tripDetails={tripDetails}
@@ -119,82 +119,93 @@ export const ItineraryPage: React.FC = () => {
         onSignIn={handleSignIn}
       />
       
-      <div className="p-8">
-        <div className="max-w-6xl mx-auto">
-          {/* Day Tabs */}
-          <DayTabs 
-            days={totalDays} 
-            activeDay={activeDay} 
-            onDayChange={setActiveDay} 
-          />
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 p-8 overflow-y-auto">
+          <div className="max-w-6xl mx-auto">
+            {/* Day Tabs */}
+            <DayTabs 
+              days={totalDays} 
+              activeDay={activeDay} 
+              onDayChange={setActiveDay} 
+            />
 
-          <div className="flex gap-4">
-            <div className="flex-1">
-              {/* Current Day Content */}
-              {currentDayData && (
-                <div>
-                  {/* Date Header */}
-                  <div className="text-center mb-8">
-                    <h2 className="text-xl font-bold">{formatDate(activeDay)}</h2>
-                    <p className="text-gray-500 text-sm">{currentDayData.year}</p>
-                  </div>
-
-                  {/* Day Items */}
-                  <div className="space-y-3">
-                    {currentDayData.activities.map((activity, itemIndex) => (
-                      <div key={itemIndex} className="flex items-start gap-4">
-                        <div className="text-sm text-gray-500 w-12 pt-3">
-                          {activity.time}
-                        </div>
-                        <div className="flex-1">
-                          <ItineraryCard {...convertActivityToCard(activity)} />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+            {/* Current Day Content */}
+            {currentDayData && (
+              <div>
+                {/* Date Header */}
+                <div className="text-center mb-8">
+                  <h2 className="text-xl font-bold">{formatDate(activeDay)}</h2>
+                  <p className="text-gray-500 text-sm">{currentDayData.year}</p>
                 </div>
-              )}
+
+                {/* Day Items */}
+                <div className="space-y-3">
+                  {currentDayData.activities.map((activity, itemIndex) => (
+                    <div key={itemIndex} className="flex items-start gap-4">
+                      <div className="text-sm text-gray-500 w-12 pt-3">
+                        {activity.time}
+                      </div>
+                      <div className="flex-1">
+                        <ItineraryCard {...convertActivityToCard(activity)} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        
+        {/* Travel Assistant - Fixed to right edge */}
+        <div className="w-80 flex-shrink-0">
+          <div className="h-full bg-[#E8E3F3] border-l-2 border-t-2 border-b-2 border-[#222222] rounded-l-[12px] shadow-[0_4px_0_0_#222222] flex flex-col">
+            {/* Header */}
+            <div className="bg-[#B794F6] border-b-2 border-[#222222] px-4 py-3 rounded-tl-[10px] flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-4 h-4 text-white" />
+                <span className="text-white font-bold text-sm">Travel Assistant</span>
+              </div>
+              <div className="flex gap-1">
+                <div className="w-3 h-3 bg-[#FFD700] border border-[#222222] rounded-sm"></div>
+                <div className="w-3 h-3 bg-[#32CD32] border border-[#222222] rounded-sm"></div>
+              </div>
             </div>
             
-            <ResizablePanel 
-              defaultWidthPercent={35}
-              minWidthPercent={30}
-              maxWidthPercent={60}
-              storageKey="itinerary-assistant-width"
-            >
-              <RetroWindow variant="assistant" title="Travel Assistant" icon={<MessageSquare className="w-4 h-4" />}>
-                <div className="space-y-4">
-                  <div className="bg-purple-50 border-2 border-[#222222] rounded-[10px] p-3">
-                    <p className="text-sm">
-                      Hi! I've created your itinerary for {formData?.to || itineraryData.trip_details?.route}. 
-                      I can help modify your itinerary. What would you like to change?
-                    </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {suggestions.map((suggestion, i) => (
-                      <Button key={i} variant="secondary" className="w-full text-left text-sm">
-                        {suggestion}
-                      </Button>
-                    ))}
-                  </div>
-                  
-                  <div className="border-t-2 border-[#ECE7DF] pt-4">
-                    <div className="flex gap-2">
-                      <Input
-                        value={assistantInput}
-                        onChange={(e) => setAssistantInput(e.target.value)}
-                        placeholder="Ask me to modify your itinerary..."
-                        className="flex-1"
-                      />
-                      <Button variant="primary">
-                        <Send className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
+            {/* Content */}
+            <div className="flex-1 flex flex-col">
+              {/* Chat area - scrollable */}
+              <div className="flex-1 p-4 space-y-4 overflow-y-auto">
+                <div className="bg-purple-50 border-2 border-[#222222] rounded-[10px] p-3">
+                  <p className="text-sm">
+                    Hi! I've created your itinerary for {formData?.to || itineraryData.trip_details?.route}. 
+                    I can help modify your itinerary. What would you like to change?
+                  </p>
                 </div>
-              </RetroWindow>
-            </ResizablePanel>
+                
+                <div className="space-y-2">
+                  {suggestions.map((suggestion, i) => (
+                    <Button key={i} variant="secondary" className="w-full text-left text-sm">
+                      {suggestion}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Input bar - pinned to bottom */}
+              <div className="border-t-2 border-[#ECE7DF] p-4">
+                <div className="flex gap-2">
+                  <Input
+                    value={assistantInput}
+                    onChange={(e) => setAssistantInput(e.target.value)}
+                    placeholder="Ask me to modify your itinerary..."
+                    className="flex-1"
+                  />
+                  <Button variant="primary">
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
