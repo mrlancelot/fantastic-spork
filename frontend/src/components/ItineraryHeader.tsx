@@ -86,7 +86,13 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
           </button>
           
           <button
-            onClick={onMyTrips}
+            onClick={() => {
+              if (onMyTrips) {
+                onMyTrips();
+              } else {
+                window.location.href = '/my-trips';
+              }
+            }}
             className="px-3 py-2 text-sm font-medium text-[#4E4E4E] hover:text-[#222222] hover:bg-gray-50 rounded-[6px] transition-colors"
           >
             My trips

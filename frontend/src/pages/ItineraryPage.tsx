@@ -100,8 +100,7 @@ export const ItineraryPage: React.FC = () => {
   };
 
   const handleMyTrips = () => {
-    // TODO: Implement my trips functionality
-    console.log('My trips clicked');
+    navigate('/my-trips');
   };
 
   const handleSignIn = () => {
