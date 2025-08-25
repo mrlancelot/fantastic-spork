@@ -96,6 +96,8 @@ export const LandingPage: React.FC = () => {
         onSaveTrip={handleSaveTrip}
         onMyTrips={handleMyTrips}
         onSignIn={handleSignIn}
+        showBackButton={false}
+        showSaveButton={false}
       />
       
       <div className="flex-1 overflow-y-auto p-8">

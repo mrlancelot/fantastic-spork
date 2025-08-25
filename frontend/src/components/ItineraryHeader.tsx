@@ -15,6 +15,8 @@ interface ItineraryHeaderProps {
   onSaveTrip?: () => void;
   onMyTrips?: () => void;
   onSignIn?: () => void;
+  showBackButton?: boolean;
+  showSaveButton?: boolean;
 }
 
 export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
@@ -22,7 +24,9 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
   onBackToSearch,
   onSaveTrip,
   onMyTrips,
-  onSignIn
+  onSignIn,
+  showBackButton = true,
+  showSaveButton = true
 }) => {
   const formatTripDetails = () => {
     if (!tripDetails) return '';
@@ -49,18 +53,20 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
     <header className={`${theme.colors.canvas} px-6 py-4`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Left section - Back button */}
-        <div className="flex items-center">
-          <button
-            onClick={onBackToSearch}
-            className="flex items-center gap-2 text-[#4E4E4E] hover:text-[#222222] transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm font-medium">Back to search</span>
-          </button>
+        <div className="flex items-center w-1/3">
+          {showBackButton && (
+            <button
+              onClick={onBackToSearch}
+              className="flex items-center gap-2 text-[#4E4E4E] hover:text-[#222222] transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm font-medium">Back to search</span>
+            </button>
+          )}
         </div>
 
         {/* Center section - Logo and trip details */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center justify-center gap-3 w-1/3">
           <div className="flex items-center gap-2 select-none">
             <div className="w-8 h-8 bg-[#4A90E2] rounded-full border-2 border-[#222222] flex items-center justify-center">
               <MapPin className="w-4 h-4 text-white" />
@@ -76,14 +82,16 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
         </div>
 
         {/* Right section - Action buttons */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onSaveTrip}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#4E4E4E] hover:text-[#222222] hover:bg-gray-50 rounded-[6px] transition-colors"
-          >
-            <Bookmark className="w-4 h-4" />
-            Save trip
-          </button>
+        <div className="flex items-center justify-end gap-3 w-1/3">
+          {showSaveButton && (
+            <button
+              onClick={onSaveTrip}
+              className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-[#4E4E4E] hover:text-[#222222] hover:bg-gray-50 rounded-[6px] transition-colors"
+            >
+              <Bookmark className="w-4 h-4" />
+              Save trip
+            </button>
+          )}
           
           <button
             onClick={() => {
