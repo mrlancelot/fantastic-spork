@@ -6,6 +6,7 @@ import { ItineraryCard } from '../components/retro/ItineraryCard';
 import { DayTabs } from '../components/retro/DayTabs';
 import { ItineraryResponse, Activity } from '../services/api';
 import { ItineraryHeader } from '../components/ItineraryHeader';
+import { ResizableChat } from '../components/ResizableChat';
 
 export const ItineraryPage: React.FC = () => {
   const location = useLocation();
@@ -156,11 +157,11 @@ export const ItineraryPage: React.FC = () => {
           </div>
         </div>
         
-        {/* Travel Assistant - Fixed to right edge */}
-        <div className="w-80 flex-shrink-0">
-          <div className="h-full bg-[#E8E3F3] border-l-2 border-t-2 border-b-2 border-[#222222] rounded-l-[12px] shadow-[0_4px_0_0_#222222] flex flex-col">
+        {/* Travel Assistant - Resizable */}
+        <ResizableChat minWidth={300} maxWidth={600} defaultWidth={320}>
+          <div className="w-full h-full bg-[#E8E3F3] border-t-2 border-b-2 border-r-2 border-[#222222] rounded-r-[12px] shadow-[0_4px_0_0_#222222] flex flex-col">
             {/* Header */}
-            <div className="bg-[#B794F6] border-b-2 border-[#222222] px-4 py-3 rounded-tl-[10px] flex items-center justify-between">
+            <div className="bg-[#B794F6] border-b-2 border-[#222222] px-4 py-3 rounded-tr-[10px] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-white" />
                 <span className="text-white font-bold text-sm">Travel Assistant</span>
@@ -193,21 +194,23 @@ export const ItineraryPage: React.FC = () => {
               
               {/* Input bar - pinned to bottom */}
               <div className="border-t-2 border-[#ECE7DF] p-4">
-                <div className="flex gap-2">
-                  <Input
-                    value={assistantInput}
-                    onChange={(e) => setAssistantInput(e.target.value)}
-                    placeholder="Ask me to modify your itinerary..."
-                    className="flex-1"
-                  />
-                  <Button variant="primary">
+                <div className="flex gap-2 w-full">
+                  <div className="flex-1">
+                    <Input
+                      value={assistantInput}
+                      onChange={(e) => setAssistantInput(e.target.value)}
+                      placeholder="Ask me to modify your itinerary..."
+                      className=""
+                    />
+                  </div>
+                  <Button variant="primary" className="flex-shrink-0">
                     <Send className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
             </div>
           </div>
-        </div>
+        </ResizableChat>
       </div>
     </div>
   );
