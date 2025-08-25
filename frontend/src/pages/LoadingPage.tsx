@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { RetroWindow, ProgressBar, theme } from '../components/retro';
 import { ApiService, ItineraryRequest, ItineraryResponse } from '../services/api';
+import { ItineraryHeader } from '../components/ItineraryHeader';
 
 export const LoadingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -110,9 +111,34 @@ export const LoadingPage: React.FC = () => {
     navigate('/', { state: { formData } });
   };
 
+  const handleBackToSearch = () => {
+    navigate('/');
+  };
+
+  const handleSaveTrip = () => {
+    console.log('Save trip clicked');
+  };
+
+  const handleMyTrips = () => {
+    navigate('/my-trips');
+  };
+
+  const handleSignIn = () => {
+    console.log('Sign in clicked');
+  };
+
   if (error) {
     return (
-      <div className={`min-h-screen ${theme.colors.canvas} p-8`}>
+      <div className={`min-h-screen ${theme.colors.canvas} flex flex-col overflow-hidden`}>
+        {/* Header */}
+        <ItineraryHeader
+          onBackToSearch={handleBackToSearch}
+          onSaveTrip={handleSaveTrip}
+          onMyTrips={handleMyTrips}
+          onSignIn={handleSignIn}
+        />
+        
+        <div className="flex-1 overflow-y-auto p-8">
         <div className="max-w-2xl mx-auto">
           <RetroWindow variant="error" title="Itinerary Creation Failed" icon={<Loader2 className="w-4 h-4" />}>
             <div className="space-y-4">
@@ -141,12 +167,22 @@ export const LoadingPage: React.FC = () => {
             </div>
           </RetroWindow>
         </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className={`min-h-screen ${theme.colors.canvas} p-8`}>
+    <div className={`min-h-screen ${theme.colors.canvas} flex flex-col overflow-hidden`}>
+      {/* Header */}
+      <ItineraryHeader
+        onBackToSearch={handleBackToSearch}
+        onSaveTrip={handleSaveTrip}
+        onMyTrips={handleMyTrips}
+        onSignIn={handleSignIn}
+      />
+      
+      <div className="flex-1 overflow-y-auto p-8">
       <div className="max-w-2xl mx-auto">
         <RetroWindow variant="default" title="Creating your itinerary" icon={<Loader2 className="w-4 h-4 animate-spin" />}>
           <div className="space-y-6">
@@ -189,6 +225,7 @@ export const LoadingPage: React.FC = () => {
             </div>
           </div>
         </RetroWindow>
+      </div>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { Plane, ChevronLeft, ChevronRight } from 'lucide-react';
 import { RetroWindow, Button, Input, Select, Tag, theme } from '../components/retro';
 import { CityAutocomplete } from '../components/CityAutocomplete';
 import { ApiService, ItineraryRequest } from '../services/api';
+import { ItineraryHeader } from '../components/ItineraryHeader';
 
 export const LandingPage: React.FC = () => {
   const navigate = useNavigate();
@@ -71,10 +72,35 @@ export const LandingPage: React.FC = () => {
     }
   };
 
+  const handleBackToSearch = () => {
+    // Already on landing page
+  };
+
+  const handleSaveTrip = () => {
+    console.log('Save trip clicked');
+  };
+
+  const handleMyTrips = () => {
+    navigate('/my-trips');
+  };
+
+  const handleSignIn = () => {
+    console.log('Sign in clicked');
+  };
+
   return (
-    <div className={`min-h-screen ${theme.colors.canvas} p-8`}>
-      <div className="max-w-3xl mx-auto">
-        <RetroWindow variant="default" title="Create Itinerary" icon={<Plane className="w-4 h-4" />}>
+    <div className={`min-h-screen ${theme.colors.canvas} flex flex-col overflow-hidden`}>
+      {/* Header */}
+      <ItineraryHeader
+        onBackToSearch={handleBackToSearch}
+        onSaveTrip={handleSaveTrip}
+        onMyTrips={handleMyTrips}
+        onSignIn={handleSignIn}
+      />
+      
+      <div className="flex-1 overflow-y-auto p-8">
+        <div className="max-w-3xl mx-auto">
+          <RetroWindow variant="default" title="Create Itinerary" icon={<Plane className="w-4 h-4" />}>
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="flex gap-2 p-1 bg-gray-100 rounded-[8px] border-2 border-[#222222]">
               <button
@@ -186,6 +212,7 @@ export const LandingPage: React.FC = () => {
             </Button>
           </form>
         </RetroWindow>
+        </div>
       </div>
     </div>
   );
