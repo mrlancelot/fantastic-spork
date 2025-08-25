@@ -46,7 +46,7 @@ export const ItineraryHeader: React.FC<ItineraryHeaderProps> = ({
   };
 
   return (
-    <header className={`${theme.colors.canvas} border-b border-gray-300 px-6 py-4`}>
+    <header className={`${theme.colors.canvas} px-6 py-4`}>
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Left section - Back button */}
         <div className="flex items-center">

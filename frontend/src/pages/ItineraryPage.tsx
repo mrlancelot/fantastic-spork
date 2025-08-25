@@ -158,10 +158,11 @@ export const ItineraryPage: React.FC = () => {
         </div>
         
         {/* Travel Assistant - Resizable */}
-        <ResizableChat minWidth={300} maxWidth={600} defaultWidth={320}>
-          <div className="w-full h-full bg-[#E8E3F3] border-t-2 border-b-2 border-r-2 border-[#222222] rounded-r-[12px] shadow-[0_4px_0_0_#222222] flex flex-col">
-            {/* Header */}
-            <div className="bg-[#B794F6] border-b-2 border-[#222222] px-4 py-3 rounded-tr-[10px] flex items-center justify-between">
+        <div className="pt-8 pr-4 pb-4">
+          <ResizableChat minWidth={300} maxWidth={600} defaultWidth={320}>
+              <div className="w-full h-full bg-[#E8E3F3] border-2 border-[#222222] rounded-[12px] shadow-[0_4px_0_0_#222222] flex flex-col">
+                {/* Header */}
+                <div className="bg-[#B794F6] border-b-2 border-[#222222] px-4 py-3 rounded-t-[10px] flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-4 h-4 text-white" />
                 <span className="text-white font-bold text-sm">Travel Assistant</span>
@@ -210,7 +211,8 @@ export const ItineraryPage: React.FC = () => {
               </div>
             </div>
           </div>
-        </ResizableChat>
+          </ResizableChat>
+        </div>
       </div>
     </div>
   );
