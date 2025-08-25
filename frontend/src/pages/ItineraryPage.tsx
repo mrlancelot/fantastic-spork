@@ -123,12 +123,14 @@ export const ItineraryPage: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         <div className="flex-1 p-8 overflow-y-auto">
           <div className="max-w-6xl mx-auto">
-            {/* Day Tabs */}
-            <DayTabs 
-              days={totalDays} 
-              activeDay={activeDay} 
-              onDayChange={setActiveDay} 
-            />
+            {/* Day Tabs - aligned with cards */}
+            <div className="ml-16">
+              <DayTabs 
+                days={totalDays} 
+                activeDay={activeDay} 
+                onDayChange={setActiveDay} 
+              />
+            </div>
 
             {/* Current Day Content */}
             {currentDayData && (
